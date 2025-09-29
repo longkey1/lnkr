@@ -56,7 +56,7 @@ lnkr init --git-exclude-path .gitignore
 ```
 
 ### add
-Add files or directories to the link configuration.
+Add files or directories to the link configuration. This will also update the GitExclude file with all configured link paths.
 
 ```bash
 # Add single file (hard link by default)
@@ -73,7 +73,7 @@ lnkr add file.txt --from-remote
 ```
 
 ### link
-Create the actual links based on configuration.
+Create the actual links based on configuration. This will also update the GitExclude file with all configured link paths.
 
 ```bash
 # Create links (local -> remote)
@@ -84,7 +84,7 @@ lnkr link --from-remote
 ```
 
 ### unlink
-Remove all links from the filesystem.
+Remove all links from the filesystem. This will also remove all link paths from the GitExclude file.
 
 ```bash
 lnkr unlink
@@ -98,7 +98,7 @@ lnkr status
 ```
 
 ### remove
-Remove entries from the configuration.
+Remove entries from the configuration. This will also update the GitExclude file with the remaining link paths.
 
 ```bash
 lnkr remove path/to/remove

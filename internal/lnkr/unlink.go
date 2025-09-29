@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func Unlink() error {
@@ -25,6 +26,11 @@ func Unlink() error {
 			fmt.Printf("Error removing link for %s: %v\n", link.Path, err)
 			continue
 		}
+	}
+
+	// Remove all link paths from GitExclude
+	if err := removeAllLinksFromGitExclude(config); err != nil {
+		fmt.Printf("Warning: failed to remove link paths from GitExclude: %v\n", err)
 	}
 
 	fmt.Println("Link removal completed.")
@@ -67,5 +73,61 @@ func removeLinkWithBase(link Link, baseDir string) error {
 		return fmt.Errorf("unknown link type: %s", link.Type)
 	}
 
+	return nil
+}
+
+// removeAllLinksFromGitExclude removes all configured link paths from GitExclude
+func removeAllLinksFromGitExclude(config *Config) error {
+	if len(config.Links) == 0 {
+		return nil
+	}
+
+	excludePath := config.GetGitExcludePath()
+
+	// Check if exclude file exists
+	if _, err := os.Stat(excludePath); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Read existing content
+	content, err := os.ReadFile(excludePath)
+	if err != nil {
+		return err
+	}
+
+	// Split content into lines
+	lines := strings.Split(string(content), "\n")
+
+	// Find section boundaries
+	sectionStart := -1
+	sectionEnd := -1
+	sectionMarker := GitExcludeSectionStart
+	endMarker := GitExcludeSectionEnd
+
+	for i, line := range lines {
+		if strings.TrimSpace(line) == sectionMarker {
+			sectionStart = i
+		}
+		if sectionStart != -1 && strings.TrimSpace(line) == endMarker {
+			sectionEnd = i
+			break
+		}
+	}
+
+	// If section doesn't exist, nothing to remove
+	if sectionStart == -1 || sectionEnd == -1 {
+		return nil
+	}
+
+	// Remove the entire section
+	newLines := append(lines[:sectionStart], lines[sectionEnd+1:]...)
+
+	// Write back the content
+	newContent := strings.Join(newLines, "\n")
+	if err := os.WriteFile(excludePath, []byte(newContent), 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("Removed all link paths from %s\n", excludePath)
 	return nil
 }

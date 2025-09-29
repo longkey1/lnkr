@@ -107,9 +107,9 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	// Add target paths to .git/info/exclude
-	if err := addTargetPathsToGitExclude(targets); err != nil {
-		fmt.Printf("Warning: failed to add target paths to .git/info/exclude: %v\n", err)
+	// Apply all configured link paths to GitExclude
+	if err := applyAllLinksToGitExclude(config); err != nil {
+		fmt.Printf("Warning: failed to apply link paths to GitExclude: %v\n", err)
 	}
 
 	return nil
@@ -125,13 +125,4 @@ func addPathToTargets(absPath, baseDir string, existing map[string]struct{}, tar
 		*targets = append(*targets, relPath)
 	}
 	return nil
-}
-
-// addTargetPathsToGitExclude adds target paths of added links to .git/info/exclude
-func addTargetPathsToGitExclude(targetPaths []string) error {
-	// Git exclude always needs paths relative to the local directory (current directory)
-	// targetPaths are already relative paths from the base directory, so we can use them directly
-
-	// Add to .git/info/exclude
-	return addMultipleToGitExclude(targetPaths)
 }

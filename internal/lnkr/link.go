@@ -25,6 +25,11 @@ func CreateLinks(fromRemote bool) error {
 		// If err is nil, the link was either created successfully or skipped with a warning
 	}
 
+	// Apply all link paths to GitExclude
+	if err := applyAllLinksToGitExclude(config); err != nil {
+		fmt.Printf("Warning: failed to apply link paths to GitExclude: %v\n", err)
+	}
+
 	fmt.Println("Link creation completed.")
 	return nil
 }
@@ -84,4 +89,23 @@ func createLinkWithBase(link Link, fromRemote bool, config *Config) error {
 	}
 
 	return nil
+}
+
+// applyAllLinksToGitExclude removes existing LNKR section and applies all configured link paths to GitExclude
+func applyAllLinksToGitExclude(config *Config) error {
+	// First remove existing LNKR section
+	if err := removeAllLinksFromGitExclude(config); err != nil {
+		// Continue even if removal fails (section might not exist)
+	}
+
+	if len(config.Links) == 0 {
+		return nil
+	}
+
+	var linkPaths []string
+	for _, link := range config.Links {
+		linkPaths = append(linkPaths, link.Path)
+	}
+
+	return addMultipleToGitExclude(linkPaths)
 }

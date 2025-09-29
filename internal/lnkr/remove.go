@@ -39,5 +39,10 @@ func Remove(path string) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
+	// Apply all remaining link paths to GitExclude
+	if err := applyAllLinksToGitExclude(config); err != nil {
+		fmt.Printf("Warning: failed to apply link paths to GitExclude: %v\n", err)
+	}
+
 	return nil
 }
