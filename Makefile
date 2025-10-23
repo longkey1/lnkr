@@ -27,6 +27,14 @@ test: ## Run tests
 lint: ## Run linter
 	golangci-lint run
 
+.PHONY: fmt
+fmt: ## Format Go code with gofmt
+	gofmt -s -w .
+
+.PHONY: fmt-check
+fmt-check: ## Check formatting (fails if changes needed)
+	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "Needs formatting:"; echo "$$out"; exit 1; else echo "Formatting OK"; fi
+
 .PHONY: clean
 clean: ## Clean build artifacts
 	rm -rf bin/
@@ -153,5 +161,4 @@ install: ## Install goreleaser
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
 

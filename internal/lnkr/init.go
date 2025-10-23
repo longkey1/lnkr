@@ -63,12 +63,13 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 
 	// Create .lnkr.toml file if it doesn't exist
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// Create new configuration file
-		config := map[string]interface{}{
-			"local":            currentDir,
-			"remote":           remote,
-			"git_exclude_path": gitExcludePath,
-			"links":            []map[string]string{},
+		// Create new configuration using struct to maintain field order
+		cfg := Config{
+			Local:          currentDir,
+			Remote:         remote,
+			Source:         "local",
+			GitExcludePath: gitExcludePath,
+			Links:          []Link{},
 		}
 
 		file, err := os.Create(filename)
@@ -78,7 +79,7 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 		defer file.Close()
 
 		encoder := toml.NewEncoder(file)
-		if err := encoder.Encode(config); err != nil {
+		if err := encoder.Encode(cfg); err != nil {
 			return fmt.Errorf("failed to encode configuration: %w", err)
 		}
 
@@ -90,20 +91,23 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 			return fmt.Errorf("failed to read configuration file: %w", err)
 		}
 
-		var config map[string]interface{}
+		var cfg Config
 		if len(content) > 0 {
-			if _, err := toml.Decode(string(content), &config); err != nil {
+			if _, err := toml.Decode(string(content), &cfg); err != nil {
 				return fmt.Errorf("failed to decode configuration: %w", err)
 			}
 		}
 
 		// Always update local and remote
-		config["local"] = currentDir
-		config["remote"] = remote
+		cfg.Local = currentDir
+		cfg.Remote = remote
 
-		// Set git_exclude_path if not already set
-		if _, exists := config["git_exclude_path"]; !exists {
-			config["git_exclude_path"] = gitExcludePath
+		// Set defaults if not present
+		if strings.TrimSpace(cfg.Source) == "" {
+			cfg.Source = "local"
+		}
+		if strings.TrimSpace(cfg.GitExcludePath) == "" {
+			cfg.GitExcludePath = gitExcludePath
 		}
 
 		file, err := os.Create(filename)
@@ -113,7 +117,7 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 		defer file.Close()
 
 		encoder := toml.NewEncoder(file)
-		if err := encoder.Encode(config); err != nil {
+		if err := encoder.Encode(cfg); err != nil {
 			return fmt.Errorf("failed to encode configuration: %w", err)
 		}
 

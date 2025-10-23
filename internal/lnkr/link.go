@@ -4,14 +4,37 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-func CreateLinks(fromRemote bool) error {
+// CreateLinksAuto creates links using either a flag override or the config's source setting.
+// If fromRemoteOverride is nil, the source is chosen based on config.Source (default: local).
+func CreateLinksAuto(fromRemoteOverride *bool) error {
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
+	var fromRemote bool
+	if fromRemoteOverride != nil {
+		fromRemote = *fromRemoteOverride
+	} else {
+		fromRemote = strings.EqualFold(config.GetSource(), "remote")
+	}
+
+	return createLinksUsingConfig(config, fromRemote)
+}
+
+// CreateLinks keeps backward compatibility: call with explicit direction.
+func CreateLinks(fromRemote bool) error {
+	config, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	return createLinksUsingConfig(config, fromRemote)
+}
+
+func createLinksUsingConfig(config *Config, fromRemote bool) error {
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
 		return nil

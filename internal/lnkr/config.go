@@ -35,10 +35,24 @@ type Link struct {
 }
 
 type Config struct {
-	Local          string `toml:"local"`
-	Remote         string `toml:"remote"`
+	Local  string `toml:"local"`
+	Remote string `toml:"remote"`
+	// Source determines which side is treated as the source when creating links.
+	// Accepts "local" or "remote". Defaults to "local" if empty or invalid.
+	Source         string `toml:"source"`
 	GitExcludePath string `toml:"git_exclude_path"`
 	Links          []Link `toml:"links"`
+}
+
+// GetSource returns normalized source value ("local" or "remote").
+// Defaults to "local" when unset or invalid.
+func (c *Config) GetSource() string {
+	switch strings.ToLower(strings.TrimSpace(c.Source)) {
+	case "remote":
+		return "remote"
+	default:
+		return "local"
+	}
 }
 
 // GetDefaultRemotePath returns the default remote path based on base directory and remote directory

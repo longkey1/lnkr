@@ -73,14 +73,11 @@ lnkr add file.txt --from-remote
 ```
 
 ### link
-Create the actual links based on configuration. This will also update the GitExclude file with all configured link paths.
+Create the actual links based on configuration. This will also update the GitExclude file with all configured link paths. The link direction is determined by the `.lnkr.toml` `source` field (see Configuration).
 
 ```bash
-# Create links (local -> remote)
+# Create links (direction determined by config `source`)
 lnkr link
-
-# Create links (remote -> local)
-lnkr link --from-remote
 ```
 
 ### unlink
@@ -116,6 +113,7 @@ lnkr clean
 ```toml
 local = "/workspace"
 remote = "/backup/project"
+source = "local" # or "remote"; default is "local". Controls link direction when running `lnkr link`.
 git_exclude_path = ".git/info/exclude"
 
 [[links]]
@@ -136,6 +134,13 @@ type = "symbolic"
 
 - **Hard Links**: Share the same inode as the original file (default)
 - **Symbolic Links**: Point to the original file/directory (use `--symbolic` flag)
+
+## Link Direction
+
+- `.lnkr.toml` `source` sets the direction for `lnkr link`.
+  - `source = "local"`: local -> remote
+  - `source = "remote"`: remote -> local
+- Safety: If the target path already exists, lnkr skips creation and keeps the existing target.
 
 ## Platform Support
 

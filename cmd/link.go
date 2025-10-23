@@ -15,8 +15,7 @@ var linkCmd = &cobra.Command{
 	Short: "Create links based on .lnkr.toml configuration",
 	Long:  `Create hard links, symbolic links, or directories based on the .lnkr.toml configuration file.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fromRemote, _ := cmd.Flags().GetBool("from-remote")
-		if err := lnkr.CreateLinks(fromRemote); err != nil {
+		if err := lnkr.CreateLinksAuto(nil); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -25,5 +24,4 @@ var linkCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(linkCmd)
-	linkCmd.Flags().Bool("from-remote", false, "Use remote directory as base for link local paths")
 }
