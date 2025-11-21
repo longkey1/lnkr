@@ -1,6 +1,7 @@
 package lnkr
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,6 +107,10 @@ func loadConfig() (*Config, error) {
 		}
 	}
 
+	if err := validateSource(config.Source); err != nil {
+		return nil, err
+	}
+
 	return config, nil
 }
 
@@ -132,4 +137,17 @@ func (c *Config) GetGitExcludePath() string {
 		return c.GitExcludePath
 	}
 	return GitExcludePath
+}
+
+func validateSource(source string) error {
+	if strings.TrimSpace(source) == "" {
+		return nil
+	}
+
+	switch normalized := strings.ToLower(strings.TrimSpace(source)); normalized {
+	case "local", "remote":
+		return nil
+	default:
+		return fmt.Errorf("invalid source value %q in %s: expected \"local\" or \"remote\"", source, ConfigFileName)
+	}
 }
