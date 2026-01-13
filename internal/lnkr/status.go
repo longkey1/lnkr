@@ -24,14 +24,6 @@ func Status() error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Print source/direction information from config
-	src := config.GetSource()
-	direction := "local -> remote"
-	if strings.EqualFold(src, "remote") {
-		direction = "remote -> local"
-	}
-	fmt.Printf("Source: %s (%s)\n\n", src, direction)
-
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
 		return nil

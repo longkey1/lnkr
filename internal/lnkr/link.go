@@ -4,48 +4,26 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// CreateLinksAuto creates links using either a flag override or the config's source setting.
-// If fromRemoteOverride is nil, the source is chosen based on config.Source (default: local).
-func CreateLinksAuto(fromRemoteOverride *bool) error {
+// CreateLinks creates links based on configuration.
+// Links are always created from remote to local (remote is the source, local is the link).
+func CreateLinks() error {
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	var fromRemote bool
-	if fromRemoteOverride != nil {
-		fromRemote = *fromRemoteOverride
-	} else {
-		fromRemote = strings.EqualFold(config.GetSource(), "remote")
-	}
-
-	return createLinksUsingConfig(config, fromRemote)
-}
-
-// CreateLinks keeps backward compatibility: call with explicit direction.
-func CreateLinks(fromRemote bool) error {
-	config, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-	return createLinksUsingConfig(config, fromRemote)
-}
-
-func createLinksUsingConfig(config *Config, fromRemote bool) error {
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
 		return nil
 	}
 
 	for _, link := range config.Links {
-		if err := createLinkWithBase(link, fromRemote, config); err != nil {
+		if err := createLinkEntry(link, config); err != nil {
 			fmt.Printf("Error creating link for %s: %v\n", link.Path, err)
 			continue
 		}
-		// If err is nil, the link was either created successfully or skipped with a warning
 	}
 
 	// Apply all link paths to GitExclude
@@ -57,18 +35,10 @@ func createLinksUsingConfig(config *Config, fromRemote bool) error {
 	return nil
 }
 
-func createLinkWithBase(link Link, fromRemote bool, config *Config) error {
-	// Determine source and target directories based on fromRemote flag
-	var sourceDir, targetDir string
-	if fromRemote {
-		// When fromRemote is true: remote -> local
-		sourceDir = config.Remote
-		targetDir = config.Local
-	} else {
-		// When fromRemote is false: local -> remote
-		sourceDir = config.Local
-		targetDir = config.Remote
-	}
+func createLinkEntry(link Link, config *Config) error {
+	// Source is always remote, target is always local
+	sourceDir := config.Remote
+	targetDir := config.Local
 
 	// Resolve absolute paths for source and target
 	sourceAbs := filepath.Join(sourceDir, link.Path)
@@ -86,27 +56,26 @@ func createLinkWithBase(link Link, fromRemote bool, config *Config) error {
 		return nil // Skip this link instead of returning error
 	}
 
+	// Create parent directory if needed
+	targetParentDir := filepath.Dir(targetAbs)
+	if err := os.MkdirAll(targetParentDir, 0755); err != nil {
+		return fmt.Errorf("failed to create target directory: %w", err)
+	}
+
 	switch link.Type {
 	case LinkTypeHard:
 		if sourceInfo.IsDir() {
 			return fmt.Errorf("hard links cannot be created for directories: %s", sourceAbs)
-		} else {
-			// For files, create hard link
-			targetParentDir := filepath.Dir(targetAbs)
-			if err := os.MkdirAll(targetParentDir, 0755); err != nil {
-				return fmt.Errorf("failed to create target directory: %w", err)
-			}
-			if err := os.Link(sourceAbs, targetAbs); err != nil {
-				return fmt.Errorf("failed to create hard link: %w", err)
-			}
-			fmt.Printf("Created hard link: %s -> %s\n", sourceAbs, targetAbs)
 		}
+		if err := os.Link(sourceAbs, targetAbs); err != nil {
+			return fmt.Errorf("failed to create hard link: %w", err)
+		}
+		fmt.Printf("Created hard link: %s -> %s\n", targetAbs, sourceAbs)
 	case LinkTypeSymbolic:
-		// Create symbolic link (works for both files and directories)
 		if err := os.Symlink(sourceAbs, targetAbs); err != nil {
 			return fmt.Errorf("failed to create symbolic link: %w", err)
 		}
-		fmt.Printf("Created symbolic link: %s -> %s\n", sourceAbs, targetAbs)
+		fmt.Printf("Created symbolic link: %s -> %s\n", targetAbs, sourceAbs)
 	default:
 		return fmt.Errorf("unknown link type: %s", link.Type)
 	}

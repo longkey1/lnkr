@@ -8,14 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var fromRemote bool
-
 var linkCmd = &cobra.Command{
 	Use:   "link",
 	Short: "Create links based on .lnkr.toml configuration",
-	Long:  `Create hard links, symbolic links, or directories based on the .lnkr.toml configuration file.`,
+	Long:  `Create hard links or symbolic links based on the .lnkr.toml configuration file.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := lnkr.CreateLinksAuto(nil); err != nil {
+		if err := lnkr.CreateLinks(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

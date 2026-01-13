@@ -63,7 +63,6 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		cfg := Config{
 			Local:          currentDir,
 			Remote:         remote,
-			Source:         "local",
 			LinkType:       LinkTypeSymbolic,
 			GitExcludePath: gitExcludePath,
 			Links:          []Link{},
@@ -100,9 +99,6 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		cfg.Remote = remote
 
 		// Set defaults if not present
-		if strings.TrimSpace(cfg.Source) == "" {
-			cfg.Source = "local"
-		}
 		if strings.TrimSpace(cfg.LinkType) == "" {
 			cfg.LinkType = LinkTypeSymbolic
 		}

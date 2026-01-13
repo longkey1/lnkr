@@ -6,6 +6,8 @@ A simple CLI tool for managing hard links and symbolic links with configuration 
 
 `lnkr` helps you manage links between local and remote directories using a `.lnkr.toml` configuration file. It automatically handles git exclusions and supports both hard links and symbolic links.
 
+When you add a file with `lnkr add`, it moves the file to the remote directory and creates a link back to the local location. This is useful for syncing configuration files to cloud storage while keeping them accessible in your project.
+
 ## Installation
 
 ```bash
@@ -22,18 +24,18 @@ go install github.com/longkey1/lnkr@latest
 # 1. Initialize project
 lnkr init --remote /backup/project
 
-# 2. Add files to link
+# 2. Add files to link (moves to remote and creates link)
 lnkr add important.txt
-lnkr add config/ --recursive
+lnkr add config/
 
-# 3. Create the links
-lnkr link
-
-# 4. Check status
+# 3. Check status
 lnkr status
 
-# 5. Remove links when done
+# 4. Remove links when done
 lnkr unlink
+
+# 5. Re-create links (e.g., after cloning)
+lnkr link
 ```
 
 ## Commands
@@ -56,27 +58,29 @@ lnkr init --git-exclude-path .gitignore
 ```
 
 ### add
-Add files or directories to the link configuration. This will also update the GitExclude file with all configured link paths.
+Add files or directories to the link configuration. This command:
+1. Moves the specified file/directory from local to remote
+2. Creates a link from remote back to local
+3. Updates the GitExclude file
 
 ```bash
-# Add single file (hard link by default)
+# Add single file (symbolic link by default)
 lnkr add file.txt
 
-# Add directory recursively
-lnkr add directory/ --recursive
+# Add with hard link
+lnkr add file.txt --type hard
 
-# Add with symbolic link
-lnkr add file.txt --symbolic
+# Add directory (symbolic link)
+lnkr add directory/
 
-# Add from remote directory
-lnkr add file.txt --from-remote
+# Add directory recursively with hard links (for all files)
+lnkr add directory/ --type hard --recursive
 ```
 
 ### link
-Create the actual links based on configuration. This will also update the GitExclude file with all configured link paths. The link direction is determined by the `.lnkr.toml` `source` field (see Configuration).
+Create links based on configuration. Links are created from remote to local (remote is the source, local is the link target). This is useful when setting up a new machine or after cloning a repository.
 
 ```bash
-# Create links (direction determined by config `source`)
 lnkr link
 ```
 
@@ -113,13 +117,12 @@ lnkr clean
 ```toml
 local = "/workspace"
 remote = "/backup/project"
-source = "local" # or "remote"; default is "local". Controls link direction when running `lnkr link`.
-link_type = "hard" # or "symbolic"; default is "hard". Controls default link type when running `lnkr add`.
+link_type = "symbolic" # or "hard"; default is "symbolic"
 git_exclude_path = ".git/info/exclude"
 
 [[links]]
 path = "file.txt"
-type = "hard"
+type = "symbolic"
 
 [[links]]
 path = "config/"
@@ -133,15 +136,18 @@ type = "symbolic"
 
 ## Link Types
 
-- **Hard Links**: Share the same inode as the original file (default)
-- **Symbolic Links**: Point to the original file/directory (use `--symbolic` flag)
+- **Symbolic Links**: Point to the original file/directory (default, use `--type symbolic` or no flag)
+- **Hard Links**: Share the same inode as the original file (use `--type hard`)
 
-## Link Direction
+Note: Hard links can only be created for files, not directories. Use `--recursive` flag to add all files in a directory as hard links.
 
-- `.lnkr.toml` `source` sets the direction for `lnkr link`.
-  - `source = "local"`: local -> remote
-  - `source = "remote"`: remote -> local
-- Safety: If the target path already exists, lnkr skips creation and keeps the existing target.
+## How It Works
+
+1. **Add**: When you run `lnkr add myfile.txt`, the file is moved from `local/myfile.txt` to `remote/myfile.txt`, and a link is created at `local/myfile.txt` pointing to `remote/myfile.txt`.
+
+2. **Link**: When you run `lnkr link` (e.g., on a new machine), it creates links from remote to local for all configured entries.
+
+3. **Unlink**: Removes the links from the local directory (remote files remain intact).
 
 ## Platform Support
 

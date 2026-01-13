@@ -7,7 +7,9 @@ import (
 	"sort"
 )
 
-func Add(path string, recursive bool, linkType string, fromRemote bool) error {
+// Add adds a local file/directory to the configuration after moving it to the remote directory.
+// It then creates a link from the remote location back to the local location.
+func Add(path string, recursive bool, linkType string) error {
 	if linkType != LinkTypeHard && linkType != LinkTypeSymbolic {
 		return fmt.Errorf("invalid link type: %s. Must be '%s' or '%s'", linkType, LinkTypeHard, LinkTypeSymbolic)
 	}
@@ -22,25 +24,21 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Determine base directory for relative paths
-	var baseDir string
-	if fromRemote {
-		if config.Remote == "" {
-			return fmt.Errorf("remote directory not configured. Run 'lnkr init --remote <path>' first")
-		}
-		baseDir = config.Remote
-	} else {
-		if config.Local == "" {
-			return fmt.Errorf("local directory not configured. Run 'lnkr init --local <path>' first")
-		}
-		baseDir = config.Local
+	if config.Local == "" {
+		return fmt.Errorf("local directory not configured. Run 'lnkr init --local <path>' first")
+	}
+	if config.Remote == "" {
+		return fmt.Errorf("remote directory not configured. Run 'lnkr init --remote <path>' first")
 	}
 
-	// Build absolute path and check if file exists
-	absPath := filepath.Join(baseDir, path)
-	fi, err := os.Stat(absPath)
+	// Build absolute path for the local file
+	localAbs := filepath.Join(config.Local, path)
+	fi, err := os.Stat(localAbs)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("path does not exist: %s", absPath)
+		return fmt.Errorf("path does not exist: %s", localAbs)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
 	}
 
 	if recursive && linkType == LinkTypeSymbolic {
@@ -63,12 +61,12 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 
 		if linkType == LinkTypeHard {
 			// Walk directory and add all files for hard links
-			err := filepath.Walk(absPath, func(p string, info os.FileInfo, err error) error {
+			err := filepath.Walk(localAbs, func(p string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
 				if !info.IsDir() {
-					return addPathToTargets(p, baseDir, existing, &targets)
+					return addPathToTargets(p, config.Local, existing, &targets)
 				}
 				return nil
 			})
@@ -77,13 +75,13 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 			}
 		} else {
 			// Add directory itself for symbolic links
-			if err := addPathToTargets(absPath, baseDir, existing, &targets); err != nil {
+			if err := addPathToTargets(localAbs, config.Local, existing, &targets); err != nil {
 				return err
 			}
 		}
 	} else {
 		// Add single file
-		if err := addPathToTargets(absPath, baseDir, existing, &targets); err != nil {
+		if err := addPathToTargets(localAbs, config.Local, existing, &targets); err != nil {
 			return err
 		}
 	}
@@ -93,8 +91,33 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 		return nil
 	}
 
-	// Add links to config
+	// Move files from local to remote and create links
 	for _, t := range targets {
+		localPath := filepath.Join(config.Local, t)
+		remotePath := filepath.Join(config.Remote, t)
+
+		// Create parent directory in remote if needed
+		remoteParentDir := filepath.Dir(remotePath)
+		if err := os.MkdirAll(remoteParentDir, 0755); err != nil {
+			return fmt.Errorf("failed to create remote directory %s: %w", remoteParentDir, err)
+		}
+
+		// Move the file/directory from local to remote
+		if err := os.Rename(localPath, remotePath); err != nil {
+			return fmt.Errorf("failed to move %s to %s: %w", localPath, remotePath, err)
+		}
+		fmt.Printf("Moved: %s -> %s\n", localPath, remotePath)
+
+		// Create link from remote to local
+		if err := createLink(remotePath, localPath, linkType); err != nil {
+			// Try to restore by moving back
+			if restoreErr := os.Rename(remotePath, localPath); restoreErr != nil {
+				fmt.Printf("Warning: failed to restore %s: %v\n", localPath, restoreErr)
+			}
+			return fmt.Errorf("failed to create link for %s: %w", t, err)
+		}
+
+		// Add to config
 		config.Links = append(config.Links, Link{Path: t, Type: linkType})
 		fmt.Printf("Added link: %s (type: %s)\n", t, linkType)
 	}
@@ -112,6 +135,25 @@ func Add(path string, recursive bool, linkType string, fromRemote bool) error {
 		fmt.Printf("Warning: failed to apply link paths to GitExclude: %v\n", err)
 	}
 
+	return nil
+}
+
+// createLink creates a link from source to target
+func createLink(source, target, linkType string) error {
+	switch linkType {
+	case LinkTypeHard:
+		if err := os.Link(source, target); err != nil {
+			return fmt.Errorf("failed to create hard link: %w", err)
+		}
+		fmt.Printf("Created hard link: %s -> %s\n", target, source)
+	case LinkTypeSymbolic:
+		if err := os.Symlink(source, target); err != nil {
+			return fmt.Errorf("failed to create symbolic link: %w", err)
+		}
+		fmt.Printf("Created symbolic link: %s -> %s\n", target, source)
+	default:
+		return fmt.Errorf("unknown link type: %s", linkType)
+	}
 	return nil
 }
 
