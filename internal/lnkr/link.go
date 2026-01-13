@@ -90,11 +90,8 @@ func applyAllLinksToGitExclude(config *Config) error {
 		// Continue even if removal fails (section might not exist)
 	}
 
-	if len(config.Links) == 0 {
-		return nil
-	}
-
-	var linkPaths []string
+	// Always include .lnkr.toml in the exclude list
+	linkPaths := []string{ConfigFileName}
 	for _, link := range config.Links {
 		linkPaths = append(linkPaths, link.Path)
 	}

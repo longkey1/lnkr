@@ -16,7 +16,12 @@ func Init(remote string, gitExcludePath string) error {
 		return fmt.Errorf("failed to create %s: %w", ConfigFileName, err)
 	}
 
-	if err := addToGitExclude(); err != nil {
+	config, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if err := applyAllLinksToGitExclude(config); err != nil {
 		return fmt.Errorf("failed to add to %s: %w", GitExcludePath, err)
 	}
 
@@ -120,16 +125,6 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		fmt.Printf("Updated local and remote in %s\n", filename)
 	}
 	return nil
-}
-
-// addToGitExclude adds .lnkr.toml to .git/info/exclude
-func addToGitExclude() error {
-	return addToGitExcludeWithSection(ConfigFileName)
-}
-
-// addToGitExcludeWithSection adds entries to .git/info/exclude with section markers
-func addToGitExcludeWithSection(entry string) error {
-	return addMultipleToGitExclude([]string{entry})
 }
 
 // addMultipleToGitExclude adds multiple entries to .git/info/exclude with section markers
