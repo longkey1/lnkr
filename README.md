@@ -114,6 +114,7 @@ lnkr clean
 local = "/workspace"
 remote = "/backup/project"
 source = "local" # or "remote"; default is "local". Controls link direction when running `lnkr link`.
+link_type = "hard" # or "symbolic"; default is "hard". Controls default link type when running `lnkr add`.
 git_exclude_path = ".git/info/exclude"
 
 [[links]]

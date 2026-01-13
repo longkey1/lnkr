@@ -10,7 +10,6 @@
 
 # Test binary, built with `go test -c`
 *.test
-*.toml
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -31,3 +30,7 @@ bin/
 .vscode/
 *.swp
 *.swo
+
+# Local environment
+.envrc
+.cache/

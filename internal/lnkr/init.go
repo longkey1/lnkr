@@ -68,6 +68,7 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 			Local:          currentDir,
 			Remote:         remote,
 			Source:         "local",
+			LinkType:       LinkTypeHard,
 			GitExcludePath: gitExcludePath,
 			Links:          []Link{},
 		}
@@ -105,6 +106,9 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 		// Set defaults if not present
 		if strings.TrimSpace(cfg.Source) == "" {
 			cfg.Source = "local"
+		}
+		if strings.TrimSpace(cfg.LinkType) == "" {
+			cfg.LinkType = LinkTypeHard
 		}
 		if strings.TrimSpace(cfg.GitExcludePath) == "" {
 			cfg.GitExcludePath = gitExcludePath

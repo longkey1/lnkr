@@ -22,12 +22,25 @@ This command will:
 	Run: func(cmd *cobra.Command, args []string) {
 		recursive, _ := cmd.Flags().GetBool("recursive")
 		symbolic, _ := cmd.Flags().GetBool("symbolic")
+		symbolicChanged := cmd.Flags().Changed("symbolic")
 		fromRemote, _ := cmd.Flags().GetBool("from-remote")
 		path := args[0]
 
-		linkType := lnkr.LinkTypeHard
-		if symbolic {
-			linkType = lnkr.LinkTypeSymbolic
+		// Load config to get default link type
+		config, err := lnkr.LoadConfigForCLI()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Determine link type: use flag if explicitly set, otherwise use config default
+		linkType := config.GetLinkType()
+		if symbolicChanged {
+			if symbolic {
+				linkType = lnkr.LinkTypeSymbolic
+			} else {
+				linkType = lnkr.LinkTypeHard
+			}
 		}
 
 		if err := lnkr.Add(path, recursive, linkType, fromRemote); err != nil {
@@ -42,6 +55,6 @@ func init() {
 
 	// Add flags
 	addCmd.Flags().BoolP("recursive", "r", false, "Add recursively (include subdirectories and files)")
-	addCmd.Flags().BoolP("symbolic", "s", false, "Create symbolic link (default: hard link)")
+	addCmd.Flags().BoolP("symbolic", "s", false, "Create symbolic link (overrides link_type in config)")
 	addCmd.Flags().Bool("from-remote", false, "Use remote directory as base for relative paths")
 }

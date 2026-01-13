@@ -40,7 +40,10 @@ type Config struct {
 	Remote string `toml:"remote"`
 	// Source determines which side is treated as the source when creating links.
 	// Accepts "local" or "remote". Defaults to "local" if empty or invalid.
-	Source         string `toml:"source"`
+	Source string `toml:"source"`
+	// LinkType determines the default link type when adding new links.
+	// Accepts "hard" or "symbolic". Defaults to "hard" if empty or invalid.
+	LinkType       string `toml:"link_type"`
 	GitExcludePath string `toml:"git_exclude_path"`
 	Links          []Link `toml:"links"`
 }
@@ -53,6 +56,17 @@ func (c *Config) GetSource() string {
 		return "remote"
 	default:
 		return "local"
+	}
+}
+
+// GetLinkType returns normalized link type value ("hard" or "symbolic").
+// Defaults to "hard" when unset or invalid.
+func (c *Config) GetLinkType() string {
+	switch strings.ToLower(strings.TrimSpace(c.LinkType)) {
+	case LinkTypeSymbolic:
+		return LinkTypeSymbolic
+	default:
+		return LinkTypeHard
 	}
 }
 
@@ -111,7 +125,17 @@ func loadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	if err := validateLinkType(config.LinkType); err != nil {
+		return nil, err
+	}
+
 	return config, nil
+}
+
+// LoadConfigForCLI loads the configuration file for CLI commands.
+// This is an exported wrapper around loadConfig for use in cmd package.
+func LoadConfigForCLI() (*Config, error) {
+	return loadConfig()
 }
 
 func saveConfig(config *Config) error {
@@ -149,5 +173,18 @@ func validateSource(source string) error {
 		return nil
 	default:
 		return fmt.Errorf("invalid source value %q in %s: expected \"local\" or \"remote\"", source, ConfigFileName)
+	}
+}
+
+func validateLinkType(linkType string) error {
+	if strings.TrimSpace(linkType) == "" {
+		return nil
+	}
+
+	switch normalized := strings.ToLower(strings.TrimSpace(linkType)); normalized {
+	case LinkTypeHard, LinkTypeSymbolic:
+		return nil
+	default:
+		return fmt.Errorf("invalid link_type value %q in %s: expected \"hard\" or \"symbolic\"", linkType, ConfigFileName)
 	}
 }
