@@ -64,7 +64,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 			Local:          currentDir,
 			Remote:         remote,
 			Source:         "local",
-			LinkType:       LinkTypeHard,
+			LinkType:       LinkTypeSymbolic,
 			GitExcludePath: gitExcludePath,
 			Links:          []Link{},
 		}
@@ -104,7 +104,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 			cfg.Source = "local"
 		}
 		if strings.TrimSpace(cfg.LinkType) == "" {
-			cfg.LinkType = LinkTypeHard
+			cfg.LinkType = LinkTypeSymbolic
 		}
 		if strings.TrimSpace(cfg.GitExcludePath) == "" {
 			cfg.GitExcludePath = gitExcludePath
