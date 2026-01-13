@@ -11,9 +11,8 @@ import (
 )
 
 var (
-	remoteDir        string
-	withCreateRemote bool
-	gitExcludePath   string
+	remoteDir      string
+	gitExcludePath string
 )
 
 // initCmd represents the init command
@@ -54,6 +53,18 @@ This command will:
 			baseDir = filepath.Join(homeDir, ".config", "lnkr")
 		}
 
+		// Check if base directory exists
+		if info, err := os.Stat(baseDir); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Error: base directory does not exist: %s\n", baseDir)
+			os.Exit(1)
+		} else if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to stat base directory: %v\n", err)
+			os.Exit(1)
+		} else if !info.IsDir() {
+			fmt.Fprintf(os.Stderr, "Error: base path is not a directory: %s\n", baseDir)
+			os.Exit(1)
+		}
+
 		// Get remote directory from flag or default
 		if remoteDir == "" {
 			// Use lnkr package function to get default remote path
@@ -70,7 +81,7 @@ This command will:
 			gitExcludePath = lnkr.GitExcludePath
 		}
 
-		if err := lnkr.Init(remoteDir, withCreateRemote, gitExcludePath); err != nil {
+		if err := lnkr.Init(remoteDir, gitExcludePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -80,6 +91,5 @@ This command will:
 func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringVarP(&remoteDir, "remote", "r", "", "Remote directory to save in .lnkr.toml (if not specified, uses LNKR_REMOTE_ROOT/project-name or parent-dir/current-dir based on LNKR_REMOTE_DEPTH)")
-	initCmd.Flags().BoolVar(&withCreateRemote, "with-create-remote", false, "Create remote directory if it does not exist")
 	initCmd.Flags().StringVar(&gitExcludePath, "git-exclude-path", "", "Custom path for git exclude file (default: .git/info/exclude)")
 }

@@ -41,11 +41,10 @@ clean: ## Clean build artifacts
 	rm -rf dist/
 
 # Get current version from git tag
-CURRENT_VERSION := $(shell git tag --sort=-v:refname | head -n1 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$$' || echo "v0.0.0")
-VERSION := $(CURRENT_VERSION)
-MAJOR := $(shell echo $(VERSION) | cut -d. -f1 | tr -d 'v' | sed 's/^$$/0/')
-MINOR := $(shell echo $(VERSION) | cut -d. -f2 | sed 's/^$$/0/')
-PATCH := $(shell echo $(VERSION) | cut -d. -f3 | sed 's/^$$/0/')
+VERSION := $(shell v=$$(git tag --sort=-v:refname | head -n1 2>/dev/null); [ -n "$$v" ] && echo "$$v" || echo "v0.0.0")
+MAJOR := $(shell echo $(VERSION) | cut -d. -f1 | tr -d 'v')
+MINOR := $(shell echo $(VERSION) | cut -d. -f2)
+PATCH := $(shell echo $(VERSION) | cut -d. -f3)
 
 # Variables for release target
 dryrun ?= true
@@ -64,17 +63,17 @@ release: ## Release target with type argument. Usage: make release type=patch|mi
 		echo "Options:"; \
 		echo "  dryrun - Set to false to actually create and push the tag (default: true)"; \
 		echo ""; \
-		echo "Current version: $(CURRENT_VERSION)"; \
+		echo "Current version: $(VERSION)"; \
 		exit 0; \
 	elif [ "$(type)" = "patch" ] || [ "$(type)" = "minor" ] || [ "$(type)" = "major" ]; then \
 		NEXT_VERSION=$$(if [ "$(type)" = "patch" ]; then \
-			echo "v$(MAJOR).$(MINOR).$$(($(PATCH) + 1))"; \
+			echo "v$(MAJOR).$(MINOR).$$(expr $(PATCH) + 1)"; \
 		elif [ "$(type)" = "minor" ]; then \
-			echo "v$(MAJOR).$$(($(MINOR) + 1)).0"; \
+			echo "v$(MAJOR).$$(expr $(MINOR) + 1).0"; \
 		elif [ "$(type)" = "major" ]; then \
-			echo "v$$(($(MAJOR) + 1)).0.0"; \
+			echo "v$$(expr $(MAJOR) + 1).0.0"; \
 		fi); \
-		echo "Current version: $(CURRENT_VERSION)"; \
+		echo "Current version: $(VERSION)"; \
 		echo "Next version: $$NEXT_VERSION"; \
 		if [ "$(dryrun)" = "false" ]; then \
 			echo "Creating new tag $$NEXT_VERSION..."; \
@@ -82,13 +81,12 @@ release: ## Release target with type argument. Usage: make release type=patch|mi
 			git tag -a $$NEXT_VERSION -m "Release of $$NEXT_VERSION"; \
 			git push origin $$NEXT_VERSION --no-verify --force-with-lease; \
 			echo "Tag $$NEXT_VERSION has been created and pushed"; \
-			echo "GitHub Actions will build and release automatically"; \
+			echo "GitHub Actions will build the release binary automatically"; \
 		else \
 			echo "[DRY RUN] Showing what would be done..."; \
 			echo "Would push to origin/master"; \
 			echo "Would create tag: $$NEXT_VERSION"; \
 			echo "Would push tag to origin: $$NEXT_VERSION"; \
-			echo "GitHub Actions would build and release automatically"; \
 			echo ""; \
 			echo "To execute this release, run:"; \
 			echo "  make release type=$(type) dryrun=false"; \
@@ -126,7 +124,9 @@ re-release: ## Rerelease target with tag argument. Usage: make re-release tag=<t
 		git tag -a "$$TAG" -m "Release $$TAG"; \
 		echo "Pushing tag to origin..."; \
 		git push origin "$$TAG" --no-verify --force-with-lease; \
-		echo "GitHub Actions will build and release automatically"; \
+		echo "Recreating GitHub release..."; \
+		gh release create "$$TAG" --title "$$TAG" --notes "Re-release of $$TAG"; \
+		echo "GitHub Actions will build the release binary automatically"; \
 		echo "Done!"; \
 	else \
 		echo "[DRY RUN] Showing what would be done..."; \
@@ -135,7 +135,8 @@ re-release: ## Rerelease target with tag argument. Usage: make re-release tag=<t
 		echo "Would delete remote tag: $$TAG"; \
 		echo "Would create new tag at HEAD: $$TAG"; \
 		echo "Would push tag to origin: $$TAG"; \
-		echo "GitHub Actions would build and release automatically"; \
+		echo "Would create new release for: $$TAG"; \
+		echo "GitHub Actions will build the release binary automatically"; \
 		echo ""; \
 		echo "To execute this re-release, run:"; \
 		if [ -n "$(tag)" ]; then \

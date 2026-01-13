@@ -11,8 +11,8 @@ import (
 )
 
 // Init performs the initialization tasks
-func Init(remote string, createRemote bool, gitExcludePath string) error {
-	if err := createLnkTomlWithRemote(remote, createRemote, gitExcludePath); err != nil {
+func Init(remote string, gitExcludePath string) error {
+	if err := createLnkTomlWithRemote(remote, gitExcludePath); err != nil {
 		return fmt.Errorf("failed to create %s: %w", ConfigFileName, err)
 	}
 
@@ -25,7 +25,7 @@ func Init(remote string, createRemote bool, gitExcludePath string) error {
 }
 
 // createLnkTomlWithRemote creates the .lnkr.toml file with remote if it doesn't exist
-func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath string) error {
+func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 	filename := ConfigFileName
 
 	// Get current directory as absolute path for local
@@ -45,12 +45,8 @@ func createLnkTomlWithRemote(remote string, createRemote bool, gitExcludePath st
 		// remoteがディレクトリであることを保証
 		info, err := os.Stat(remote)
 		if os.IsNotExist(err) {
-			if createRemote {
-				if err := os.MkdirAll(remote, 0755); err != nil {
-					return fmt.Errorf("failed to create remote directory: %w", err)
-				}
-			} else {
-				return fmt.Errorf("remote directory does not exist: %s", remote)
+			if err := os.MkdirAll(remote, 0755); err != nil {
+				return fmt.Errorf("failed to create remote directory: %w", err)
 			}
 		} else if err == nil {
 			if !info.IsDir() {
