@@ -21,12 +21,49 @@ func Init(remote string, gitExcludePath string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
+	// Move .lnkr.toml to remote and create symbolic link
+	if config.Remote != "" {
+		if err := setupConfigSymlink(config); err != nil {
+			return fmt.Errorf("failed to setup %s symlink: %w", ConfigFileName, err)
+		}
+	}
+
 	if err := applyAllLinksToGitExclude(config); err != nil {
 		return fmt.Errorf("failed to add to %s: %w", GitExcludePath, err)
 	}
 
 	fmt.Println("Project initialized successfully!")
 	return nil
+}
+
+// setupConfigSymlink moves .lnkr.toml to remote and creates a symbolic link
+func setupConfigSymlink(config *Config) error {
+	localPath := filepath.Join(config.Local, ConfigFileName)
+	remotePath := filepath.Join(config.Remote, ConfigFileName)
+
+	// Check if local path is already a symlink pointing to correct location
+	if fi, err := os.Lstat(localPath); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if target, err := os.Readlink(localPath); err == nil && target == remotePath {
+			return nil // Already correctly configured
+		}
+		os.Remove(localPath)
+	}
+
+	// If remote already exists, just create symlink
+	if _, err := os.Stat(remotePath); err == nil {
+		os.Remove(localPath)
+	} else if os.IsNotExist(err) {
+		// Move local to remote
+		if err := os.Rename(localPath, remotePath); err != nil {
+			return fmt.Errorf("failed to move %s to remote: %w", ConfigFileName, err)
+		}
+		fmt.Printf("Moved: %s -> %s\n", localPath, remotePath)
+	} else {
+		return fmt.Errorf("failed to stat remote %s: %w", ConfigFileName, err)
+	}
+
+	// Create symbolic link using shared function
+	return createLink(remotePath, localPath, LinkTypeSymbolic)
 }
 
 // createLnkTomlWithRemote creates the .lnkr.toml file with remote if it doesn't exist
@@ -82,6 +119,12 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		encoder := toml.NewEncoder(file)
 		if err := encoder.Encode(cfg); err != nil {
 			return fmt.Errorf("failed to encode configuration: %w", err)
+		}
+
+		// Add commented link entry for .lnkr.toml
+		configLinkComment := "\n# .lnkr.toml is automatically managed as a symbolic link to remote\n# [[links]]\n# path = \".lnkr.toml\"\n# type = \"sym\"\n"
+		if _, err := file.WriteString(configLinkComment); err != nil {
+			return fmt.Errorf("failed to write config link comment: %w", err)
 		}
 
 		fmt.Printf("Created %s with local and remote directories\n", filename)

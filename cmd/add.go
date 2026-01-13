@@ -35,11 +35,16 @@ This command will:
 		// Determine link type: use flag if explicitly set, otherwise use config default
 		linkType := config.GetLinkType()
 		if linkTypeFlag != "" {
-			if linkTypeFlag != lnkr.LinkTypeSymbolic && linkTypeFlag != lnkr.LinkTypeHard {
-				fmt.Fprintf(os.Stderr, "Error: invalid link type %q. Must be 'symbolic' or 'hard'\n", linkTypeFlag)
+			if linkTypeFlag != lnkr.LinkTypeSymbolic && linkTypeFlag != lnkr.LinkTypeHard && linkTypeFlag != "symbolic" {
+				fmt.Fprintf(os.Stderr, "Error: invalid link type %q. Must be 'sym' or 'hard'\n", linkTypeFlag)
 				os.Exit(1)
 			}
-			linkType = linkTypeFlag
+			// Normalize "symbolic" to "sym"
+			if linkTypeFlag == "symbolic" {
+				linkType = lnkr.LinkTypeSymbolic
+			} else {
+				linkType = linkTypeFlag
+			}
 		}
 
 		if err := lnkr.Add(path, recursive, linkType); err != nil {
@@ -54,5 +59,5 @@ func init() {
 
 	// Add flags
 	addCmd.Flags().BoolP("recursive", "r", false, "Add recursively (include all files in directory, for hard links)")
-	addCmd.Flags().StringP("type", "t", "", "Link type: 'symbolic' or 'hard' (default: config setting or symbolic)")
+	addCmd.Flags().StringP("type", "t", "", "Link type: 'sym' or 'hard' (default: config setting or sym)")
 }

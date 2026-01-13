@@ -23,12 +23,17 @@ func TestLoadConfigLinkTypeValidation(t *testing.T) {
 		{
 			name:         "SymbolicUppercase",
 			linkType:     "SYMBOLIC",
-			wantLinkType: "symbolic",
+			wantLinkType: "sym",
+		},
+		{
+			name:         "Sym",
+			linkType:     "sym",
+			wantLinkType: "sym",
 		},
 		{
 			name:         "Empty",
 			linkType:     "",
-			wantLinkType: "symbolic",
+			wantLinkType: "sym",
 		},
 		{
 			name:     "Invalid",

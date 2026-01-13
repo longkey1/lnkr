@@ -24,7 +24,7 @@ const (
 // Link type constants
 const (
 	LinkTypeHard     = "hard"
-	LinkTypeSymbolic = "symbolic"
+	LinkTypeSymbolic = "sym"
 )
 
 // Default remote depth constant
@@ -45,12 +45,15 @@ type Config struct {
 	Links          []Link `toml:"links"`
 }
 
-// GetLinkType returns normalized link type value ("hard" or "symbolic").
-// Defaults to "symbolic" when unset or invalid.
+// GetLinkType returns normalized link type value ("hard" or "sym").
+// Defaults to "sym" when unset or invalid.
+// Accepts "symbolic" as an alias for "sym" for backward compatibility.
 func (c *Config) GetLinkType() string {
 	switch strings.ToLower(strings.TrimSpace(c.LinkType)) {
 	case LinkTypeHard:
 		return LinkTypeHard
+	case LinkTypeSymbolic, "symbolic":
+		return LinkTypeSymbolic
 	default:
 		return LinkTypeSymbolic
 	}
@@ -151,9 +154,9 @@ func validateLinkType(linkType string) error {
 	}
 
 	switch normalized := strings.ToLower(strings.TrimSpace(linkType)); normalized {
-	case LinkTypeHard, LinkTypeSymbolic:
+	case LinkTypeHard, LinkTypeSymbolic, "symbolic":
 		return nil
 	default:
-		return fmt.Errorf("invalid link_type value %q in %s: expected \"hard\" or \"symbolic\"", linkType, ConfigFileName)
+		return fmt.Errorf("invalid link_type value %q in %s: expected \"hard\" or \"sym\"", linkType, ConfigFileName)
 	}
 }

@@ -64,13 +64,13 @@ Add files or directories to the link configuration. This command:
 3. Updates the GitExclude file
 
 ```bash
-# Add single file (symbolic link by default)
+# Add single file (sym link by default)
 lnkr add file.txt
 
 # Add with hard link
 lnkr add file.txt --type hard
 
-# Add directory (symbolic link)
+# Add directory (sym link)
 lnkr add directory/
 
 # Add directory recursively with hard links (for all files)
@@ -105,6 +105,28 @@ Remove entries from the configuration. This will also update the GitExclude file
 lnkr remove path/to/remove
 ```
 
+### switch
+Switch the link type of an existing entry.
+
+```bash
+# Switch to hard link
+lnkr switch file.txt hard
+
+# Switch to symbolic link
+lnkr switch file.txt sym
+
+# Toggle (sym ↔ hard)
+lnkr switch file.txt
+
+# Switch directory (recursive)
+lnkr switch mydir/ hard  # sym -> hard: expands to individual file entries
+lnkr switch mydir/ sym   # hard -> sym: consolidates to single directory entry
+```
+
+For directories:
+- **sym → hard**: Removes symlink, creates hard links for all files (entries expand in config)
+- **hard → sym**: Removes hard links, creates single symlink (entries consolidate in config)
+
 ### clean
 Remove configuration file and clean up git exclusions.
 
@@ -114,19 +136,26 @@ lnkr clean
 
 ## Configuration (.lnkr.toml)
 
+The `.lnkr.toml` file is automatically managed as a symbolic link to the remote directory. You don't need to add it to `[[links]]` - it is implicitly included.
+
 ```toml
 local = "/workspace"
 remote = "/backup/project"
-link_type = "symbolic" # or "hard"; default is "symbolic"
+link_type = "sym"  # or "hard"; default is "sym"
 git_exclude_path = ".git/info/exclude"
 
 [[links]]
 path = "file.txt"
-type = "symbolic"
+type = "sym"
 
 [[links]]
 path = "config/"
-type = "symbolic"
+type = "sym"
+
+# .lnkr.toml is automatically managed as a symbolic link to remote
+# [[links]]
+# path = ".lnkr.toml"
+# type = "sym"
 ```
 
 ## Environment Variables
@@ -136,10 +165,12 @@ type = "symbolic"
 
 ## Link Types
 
-- **Symbolic Links**: Point to the original file/directory (default, use `--type symbolic` or no flag)
-- **Hard Links**: Share the same inode as the original file (use `--type hard`)
+- **Symbolic Links (`sym`)**: Point to the original file/directory (default, use `--type sym` or no flag)
+- **Hard Links (`hard`)**: Share the same inode as the original file (use `--type hard`)
 
 Note: Hard links can only be created for files, not directories. Use `--recursive` flag to add all files in a directory as hard links.
+
+For backward compatibility, `symbolic` is also accepted as an alias for `sym`.
 
 ## How It Works
 

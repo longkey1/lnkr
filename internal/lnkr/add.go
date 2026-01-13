@@ -10,6 +10,11 @@ import (
 // Add adds a local file/directory to the configuration after moving it to the remote directory.
 // It then creates a link from the remote location back to the local location.
 func Add(path string, recursive bool, linkType string) error {
+	// Normalize "symbolic" to "sym" for backward compatibility
+	if linkType == "symbolic" {
+		linkType = LinkTypeSymbolic
+	}
+
 	if linkType != LinkTypeHard && linkType != LinkTypeSymbolic {
 		return fmt.Errorf("invalid link type: %s. Must be '%s' or '%s'", linkType, LinkTypeHard, LinkTypeSymbolic)
 	}
