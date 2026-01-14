@@ -14,6 +14,10 @@ const (
 	VarLnkrRemoteRoot = "$LNKR_REMOTE_ROOT"
 	VarLnkrLocalRoot  = "$LNKR_LOCAL_ROOT"
 	VarPWD            = "$PWD"
+
+	// Placeholder format for lnkr-specific variables
+	PlaceholderRemoteRoot = "{{remote_root}}"
+	PlaceholderLocalRoot  = "{{local_root}}"
 )
 
 // variablePattern matches $VARNAME or ${VARNAME} patterns
@@ -113,14 +117,15 @@ func expandPlaceholders(path string) string {
 }
 
 // ContractPath converts an absolute path to use variables where possible.
-// Priority: $LNKR_REMOTE_ROOT > $HOME > $PWD (longer prefix wins)
+// Priority: {{remote_root}} > {{local_root}} > $HOME > $PWD (longer prefix wins)
+// Uses {{placeholder}} format for lnkr-specific variables for better portability.
 func ContractPath(path string) string {
 	if path == "" {
 		return ""
 	}
 
-	// Don't contract if already contains variables
-	if strings.Contains(path, "$") {
+	// Don't contract if already contains variables or placeholders
+	if strings.Contains(path, "$") || strings.Contains(path, "{{") {
 		return path
 	}
 
@@ -138,15 +143,16 @@ func ContractPath(path string) string {
 	var replacements []replacement
 
 	// Collect possible replacements (use global config which handles env > config priority)
+	// Use {{placeholder}} format for lnkr-specific variables
 	if remoteRoot := GetRemoteRoot(); remoteRoot != "" {
 		if absRemoteRoot, err := filepath.Abs(remoteRoot); err == nil {
-			replacements = append(replacements, replacement{absRemoteRoot, VarLnkrRemoteRoot})
+			replacements = append(replacements, replacement{absRemoteRoot, PlaceholderRemoteRoot})
 		}
 	}
 
 	if localRoot := GetLocalRoot(); localRoot != "" {
 		if absLocalRoot, err := filepath.Abs(localRoot); err == nil {
-			replacements = append(replacements, replacement{absLocalRoot, VarLnkrLocalRoot})
+			replacements = append(replacements, replacement{absLocalRoot, PlaceholderLocalRoot})
 		}
 	}
 

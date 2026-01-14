@@ -150,9 +150,14 @@ func TestContractPath(t *testing.T) {
 			want: "$HOME/.config",
 		},
 		{
-			name: "contract to $LNKR_REMOTE_ROOT (more specific)",
+			name: "path already has placeholder",
+			path: "{{remote_root}}/project",
+			want: "{{remote_root}}/project",
+		},
+		{
+			name: "contract to {{remote_root}} (more specific)",
 			path: "/home/testuser/.config/lnkr/project",
-			want: "$LNKR_REMOTE_ROOT/project",
+			want: "{{remote_root}}/project",
 		},
 		{
 			name: "contract to $HOME",
@@ -165,9 +170,9 @@ func TestContractPath(t *testing.T) {
 			want: "$HOME",
 		},
 		{
-			name: "exact match $LNKR_REMOTE_ROOT",
+			name: "exact match {{remote_root}}",
 			path: "/home/testuser/.config/lnkr",
-			want: "$LNKR_REMOTE_ROOT",
+			want: "{{remote_root}}",
 		},
 		{
 			name: "unrelated path stays unchanged",
