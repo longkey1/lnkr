@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/longkey1/lnkr/internal/lnkr"
 	"github.com/spf13/cobra"
@@ -32,26 +31,11 @@ This command will:
 			os.Exit(1)
 		}
 
-		// Get the number of depth to go up from environment variable, default to DefaultRemoteDepth
-		depthStr := os.Getenv("LNKR_REMOTE_DEPTH")
-		depth := lnkr.DefaultRemoteDepth // default value
-		if depthStr != "" {
-			if parsedDepth, err := strconv.Atoi(depthStr); err == nil && parsedDepth > 0 {
-				depth = parsedDepth
-			}
-		}
+		// Get the number of depth from global config (env var > config file > default)
+		depth := lnkr.GetRemoteDepth()
 
-		// Get base directory for remote
-		baseDir := os.Getenv("LNKR_REMOTE_ROOT")
-		if baseDir == "" {
-			// Default to $HOME/.config/lnkr
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: failed to get home directory: %v\n", err)
-				os.Exit(1)
-			}
-			baseDir = filepath.Join(homeDir, ".config", "lnkr")
-		}
+		// Get base directory for remote from global config (env var > config file > default)
+		baseDir := lnkr.GetRemoteRoot()
 
 		// Check if base directory exists
 		if info, err := os.Stat(baseDir); os.IsNotExist(err) {
@@ -76,9 +60,9 @@ This command will:
 			}
 		}
 
-		// Set default git exclude path if not specified
+		// Set default git exclude path if not specified (env var > config file > default)
 		if gitExcludePath == "" {
-			gitExcludePath = lnkr.GitExcludePath
+			gitExcludePath = lnkr.GetGlobalGitExcludePath()
 		}
 
 		if err := lnkr.Init(remoteDir, gitExcludePath); err != nil {

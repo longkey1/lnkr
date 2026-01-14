@@ -114,7 +114,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		cfg := Config{
 			Local:          ContractPath(currentDir),
 			Remote:         ContractPath(remote),
-			LinkType:       LinkTypeSymbolic,
+			LinkType:       GetGlobalLinkType(),
 			GitExcludePath: gitExcludePath,
 			Links:          []Link{},
 		}
@@ -157,7 +157,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 
 		// Set defaults if not present
 		if strings.TrimSpace(cfg.LinkType) == "" {
-			cfg.LinkType = LinkTypeSymbolic
+			cfg.LinkType = GetGlobalLinkType()
 		}
 		if strings.TrimSpace(cfg.GitExcludePath) == "" {
 			cfg.GitExcludePath = gitExcludePath

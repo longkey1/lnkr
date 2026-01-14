@@ -158,10 +158,36 @@ type = "sym"
 # type = "sym"
 ```
 
+## Global Configuration
+
+You can configure default settings in `~/.config/lnkr/config.toml`:
+
+```toml
+remote_root = "/path/to/your/dotfiles"
+remote_depth = 2
+link_type = "sym"
+git_exclude_path = ".git/info/exclude"
+```
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `remote_root` | Base directory for remote paths | `$HOME/.config/lnkr` |
+| `remote_depth` | Directory levels to include in default remote path | `2` |
+| `link_type` | Default link type (`sym` or `hard`) | `sym` |
+| `git_exclude_path` | Path to git exclude file | `.git/info/exclude` |
+
 ## Environment Variables
 
-- `LNKR_REMOTE_ROOT`: Base directory for remote paths (default: `$HOME/.config/lnkr`)
-- `LNKR_REMOTE_DEPTH`: Directory levels to include in default remote path (default: 2)
+Environment variables override config file settings:
+
+| Variable | Overrides |
+|----------|-----------|
+| `LNKR_REMOTE_ROOT` | `remote_root` |
+| `LNKR_REMOTE_DEPTH` | `remote_depth` |
+| `LNKR_LINK_TYPE` | `link_type` |
+| `LNKR_GIT_EXCLUDE_PATH` | `git_exclude_path` |
+
+**Priority**: Environment variables > Config file > Default values
 
 ## Link Types
 
