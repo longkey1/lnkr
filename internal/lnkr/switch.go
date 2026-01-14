@@ -35,6 +35,16 @@ func Switch(path string, newType string) error {
 		return fmt.Errorf("local or remote directory not configured. Run 'lnkr init' first")
 	}
 
+	// Expand paths with environment variables
+	localDir, err := config.GetLocalExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand local path: %w", err)
+	}
+	remoteDir, err := config.GetRemoteExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand remote path: %w", err)
+	}
+
 	// Find the entry (exact match or prefix match for hard-linked directories)
 	var targetIndex int = -1
 	var isHardLinkedDir bool
@@ -86,8 +96,8 @@ func Switch(path string, newType string) error {
 		return nil
 	}
 
-	localPath := filepath.Join(config.Local, path)
-	remotePath := filepath.Join(config.Remote, path)
+	localPath := filepath.Join(localDir, path)
+	remotePath := filepath.Join(remoteDir, path)
 
 	// Check if this is a directory
 	fi, err := os.Stat(remotePath)
@@ -97,7 +107,7 @@ func Switch(path string, newType string) error {
 
 	if fi.IsDir() || isHardLinkedDir {
 		// Handle directory conversion
-		return switchDirectory(config, targetIndex, path, currentType, targetType, isHardLinkedDir)
+		return switchDirectory(config, targetIndex, path, localDir, remoteDir, currentType, targetType, isHardLinkedDir)
 	}
 
 	// Handle file conversion
@@ -131,9 +141,9 @@ func switchFile(config *Config, targetIndex int, path, localPath, remotePath, cu
 }
 
 // switchDirectory handles directory link type conversion
-func switchDirectory(config *Config, targetIndex int, path, currentType, targetType string, isHardLinkedDir bool) error {
-	localPath := filepath.Join(config.Local, path)
-	remotePath := filepath.Join(config.Remote, path)
+func switchDirectory(config *Config, targetIndex int, path, localDir, remoteDir, currentType, targetType string, isHardLinkedDir bool) error {
+	localPath := filepath.Join(localDir, path)
+	remotePath := filepath.Join(remoteDir, path)
 
 	if targetType == LinkTypeHard {
 		// sym -> hard: Remove symlink dir, create hard links for each file
@@ -149,16 +159,16 @@ func switchDirectory(config *Config, targetIndex int, path, currentType, targetT
 			}
 			if info.IsDir() {
 				relPath, _ := filepath.Rel(remotePath, p)
-				localDir := filepath.Join(localPath, relPath)
+				subLocalDir := filepath.Join(localPath, relPath)
 				if relPath == "." {
-					localDir = localPath
+					subLocalDir = localPath
 				}
-				return os.MkdirAll(localDir, 0755)
+				return os.MkdirAll(subLocalDir, 0755)
 			}
 
 			// Create hard link for file
-			relPath, _ := filepath.Rel(config.Remote, p)
-			localFile := filepath.Join(config.Local, relPath)
+			relPath, _ := filepath.Rel(remoteDir, p)
+			localFile := filepath.Join(localDir, relPath)
 			if err := createLink(p, localFile, LinkTypeHard); err != nil {
 				return err
 			}
@@ -179,7 +189,7 @@ func switchDirectory(config *Config, targetIndex int, path, currentType, targetT
 		var remainingLinks []Link
 		for _, link := range config.Links {
 			if link.Path == path || strings.HasPrefix(link.Path, pathPrefix) {
-				os.Remove(filepath.Join(config.Local, link.Path))
+				os.Remove(filepath.Join(localDir, link.Path))
 			} else {
 				remainingLinks = append(remainingLinks, link)
 			}

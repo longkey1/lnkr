@@ -19,7 +19,10 @@ func Unlink() error {
 	}
 
 	// Use local directory as base for resolving link paths
-	baseDir := config.Local
+	baseDir, err := config.GetLocalExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand local path: %w", err)
+	}
 
 	for _, link := range config.Links {
 		if err := removeLinkWithBase(link, baseDir); err != nil {

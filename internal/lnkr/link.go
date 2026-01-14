@@ -37,8 +37,14 @@ func CreateLinks() error {
 
 func createLinkEntry(link Link, config *Config) error {
 	// Source is always remote, target is always local
-	sourceDir := config.Remote
-	targetDir := config.Local
+	sourceDir, err := config.GetRemoteExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand remote path: %w", err)
+	}
+	targetDir, err := config.GetLocalExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand local path: %w", err)
+	}
 
 	// Resolve absolute paths for source and target
 	sourceAbs := filepath.Join(sourceDir, link.Path)

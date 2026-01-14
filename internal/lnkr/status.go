@@ -100,16 +100,21 @@ func checkLinkStatus(link Link, config *Config) LinkStatus {
 		return status
 	}
 
-	// Get absolute path for remote directory
-	absRemote, err := filepath.Abs(config.Remote)
+	// Expand paths with environment variables
+	localDir, err := config.GetLocalExpanded()
 	if err != nil {
-		status.Error = fmt.Sprintf("Invalid remote directory path: %v", err)
+		status.Error = fmt.Sprintf("Failed to expand local path: %v", err)
+		return status
+	}
+	remoteDir, err := config.GetRemoteExpanded()
+	if err != nil {
+		status.Error = fmt.Sprintf("Failed to expand remote path: %v", err)
 		return status
 	}
 
 	// Set the full paths
-	status.LocalPath = link.Path
-	status.RemotePath = filepath.Join(absRemote, link.Path)
+	status.LocalPath = filepath.Join(localDir, link.Path)
+	status.RemotePath = filepath.Join(remoteDir, link.Path)
 
 	// Check if the link path exists
 	info, err := os.Stat(status.LocalPath)

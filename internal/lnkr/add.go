@@ -36,8 +36,18 @@ func Add(path string, recursive bool, linkType string) error {
 		return fmt.Errorf("remote directory not configured. Run 'lnkr init --remote <path>' first")
 	}
 
+	// Expand paths with environment variables
+	localDir, err := config.GetLocalExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand local path: %w", err)
+	}
+	remoteDir, err := config.GetRemoteExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand remote path: %w", err)
+	}
+
 	// Build absolute path for the local file
-	localAbs := filepath.Join(config.Local, path)
+	localAbs := filepath.Join(localDir, path)
 	fi, err := os.Stat(localAbs)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("path does not exist: %s", localAbs)
@@ -71,7 +81,7 @@ func Add(path string, recursive bool, linkType string) error {
 					return err
 				}
 				if !info.IsDir() {
-					return addPathToTargets(p, config.Local, existing, &targets)
+					return addPathToTargets(p, localDir, existing, &targets)
 				}
 				return nil
 			})
@@ -80,13 +90,13 @@ func Add(path string, recursive bool, linkType string) error {
 			}
 		} else {
 			// Add directory itself for symbolic links
-			if err := addPathToTargets(localAbs, config.Local, existing, &targets); err != nil {
+			if err := addPathToTargets(localAbs, localDir, existing, &targets); err != nil {
 				return err
 			}
 		}
 	} else {
 		// Add single file
-		if err := addPathToTargets(localAbs, config.Local, existing, &targets); err != nil {
+		if err := addPathToTargets(localAbs, localDir, existing, &targets); err != nil {
 			return err
 		}
 	}
@@ -98,8 +108,8 @@ func Add(path string, recursive bool, linkType string) error {
 
 	// Move files from local to remote and create links
 	for _, t := range targets {
-		localPath := filepath.Join(config.Local, t)
-		remotePath := filepath.Join(config.Remote, t)
+		localPath := filepath.Join(localDir, t)
+		remotePath := filepath.Join(remoteDir, t)
 
 		// Create parent directory in remote if needed
 		remoteParentDir := filepath.Dir(remotePath)

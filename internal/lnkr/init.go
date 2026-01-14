@@ -38,8 +38,16 @@ func Init(remote string, gitExcludePath string) error {
 
 // setupConfigSymlink moves .lnkr.toml to remote and creates a symbolic link
 func setupConfigSymlink(config *Config) error {
-	localPath := filepath.Join(config.Local, ConfigFileName)
-	remotePath := filepath.Join(config.Remote, ConfigFileName)
+	localDir, err := config.GetLocalExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand local path: %w", err)
+	}
+	remoteDir, err := config.GetRemoteExpanded()
+	if err != nil {
+		return fmt.Errorf("failed to expand remote path: %w", err)
+	}
+	localPath := filepath.Join(localDir, ConfigFileName)
+	remotePath := filepath.Join(remoteDir, ConfigFileName)
 
 	// Check if local path is already a symlink pointing to correct location
 	if fi, err := os.Lstat(localPath); err == nil && fi.Mode()&os.ModeSymlink != 0 {
@@ -102,9 +110,10 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 	// Create .lnkr.toml file if it doesn't exist
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		// Create new configuration using struct to maintain field order
+		// Use ContractPath to make paths portable
 		cfg := Config{
-			Local:          currentDir,
-			Remote:         remote,
+			Local:          ContractPath(currentDir),
+			Remote:         ContractPath(remote),
 			LinkType:       LinkTypeSymbolic,
 			GitExcludePath: gitExcludePath,
 			Links:          []Link{},
@@ -142,9 +151,9 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 			}
 		}
 
-		// Always update local and remote
-		cfg.Local = currentDir
-		cfg.Remote = remote
+		// Always update local and remote (use ContractPath for portability)
+		cfg.Local = ContractPath(currentDir)
+		cfg.Remote = ContractPath(remote)
 
 		// Set defaults if not present
 		if strings.TrimSpace(cfg.LinkType) == "" {

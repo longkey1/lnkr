@@ -148,6 +148,18 @@ func (c *Config) GetGitExcludePath() string {
 	return GitExcludePath
 }
 
+// GetLocalExpanded returns the expanded local path with environment variables resolved.
+// Returns error if any variable in the path is undefined.
+func (c *Config) GetLocalExpanded() (string, error) {
+	return ExpandPath(c.Local)
+}
+
+// GetRemoteExpanded returns the expanded remote path with environment variables resolved.
+// Returns error if any variable in the path is undefined.
+func (c *Config) GetRemoteExpanded() (string, error) {
+	return ExpandPath(c.Remote)
+}
+
 func validateLinkType(linkType string) error {
 	if strings.TrimSpace(linkType) == "" {
 		return nil
