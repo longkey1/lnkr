@@ -116,8 +116,8 @@ func checkLinkStatus(link Link, config *Config) LinkStatus {
 	status.LocalPath = filepath.Join(localDir, link.Path)
 	status.RemotePath = filepath.Join(remoteDir, link.Path)
 
-	// Check if the link path exists
-	info, err := os.Stat(status.LocalPath)
+	// Check if the link path exists (use Lstat to not follow symlinks)
+	info, err := os.Lstat(status.LocalPath)
 	if os.IsNotExist(err) {
 		status.Exists = false
 		status.Error = "LINK NOT FOUND"
