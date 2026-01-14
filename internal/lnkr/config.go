@@ -27,9 +27,6 @@ const (
 	LinkTypeSymbolic = "sym"
 )
 
-// Default remote depth constant
-const DefaultRemoteDepth = 2
-
 type Link struct {
 	Path string `toml:"path"`
 	Type string `toml:"type"`
@@ -59,36 +56,27 @@ func (c *Config) GetLinkType() string {
 	}
 }
 
-// GetDefaultRemotePath returns the default remote path based on base directory and remote directory
-func GetDefaultRemotePath(baseDir, remoteDir string, depth int) string {
-	// Split the base directory path into components
-	pathComponents := strings.Split(baseDir, string(os.PathSeparator))
+// GetDefaultRemotePath returns the default remote path based on current directory, local root, and remote root.
+// If localRoot is provided, calculates relative path from localRoot.
+// If localRoot is empty, uses only the current directory name.
+func GetDefaultRemotePath(currentDir, localRoot, remoteRoot string) string {
+	var relativePath string
 
-	// Remove empty components (happens with absolute paths)
-	var cleanComponents []string
-	for _, component := range pathComponents {
-		if component != "" {
-			cleanComponents = append(cleanComponents, component)
+	if localRoot != "" {
+		// Calculate relative path from localRoot
+		rel, err := filepath.Rel(localRoot, currentDir)
+		if err == nil && !strings.HasPrefix(rel, "..") {
+			relativePath = rel
+		} else {
+			// If currentDir is not under localRoot, fall back to basename
+			relativePath = filepath.Base(currentDir)
 		}
+	} else {
+		// No localRoot set, use only the current directory name
+		relativePath = filepath.Base(currentDir)
 	}
 
-	// Adjust depth if we don't have enough components
-	if len(cleanComponents) < depth {
-		depth = len(cleanComponents)
-	}
-
-	// Get the components for the remote path
-	// depth=1: current directory only
-	// depth=2: parent directory + current directory
-	// depth=3: grandparent directory + parent directory + current directory
-	startIndex := len(cleanComponents) - depth
-	if startIndex < 0 {
-		startIndex = 0
-	}
-
-	remoteComponents := cleanComponents[startIndex:]
-	remotePath := strings.Join(remoteComponents, string(os.PathSeparator))
-	return filepath.Join(remoteDir, remotePath)
+	return filepath.Join(remoteRoot, relativePath)
 }
 
 func loadConfig() (*Config, error) {

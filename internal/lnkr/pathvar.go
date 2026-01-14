@@ -12,27 +12,38 @@ import (
 const (
 	VarHome           = "$HOME"
 	VarLnkrRemoteRoot = "$LNKR_REMOTE_ROOT"
+	VarLnkrLocalRoot  = "$LNKR_LOCAL_ROOT"
 	VarPWD            = "$PWD"
 )
 
 // variablePattern matches $VARNAME or ${VARNAME} patterns
 var variablePattern = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?`)
 
-// ExpandPath expands environment variables in a path string.
-// Supports any environment variable in $VARNAME or ${VARNAME} format.
-// $PWD is handled specially using os.Getwd().
-// Returns error if a variable is undefined.
+// placeholderPattern matches {{key}} patterns for global config references (env > config > default)
+var placeholderPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
+
+// ExpandPath expands placeholders and environment variables in a path string.
+// Supports:
+// - Placeholders: {{remote_root}}, {{local_root}} (env > config > default priority)
+// - Environment variables: $VARNAME or ${VARNAME} format
+// - Special: $PWD (current working directory)
+// Returns error if a variable/placeholder is undefined.
 func ExpandPath(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
 
-	// If no $ in path, return as-is (backward compatibility with absolute paths)
-	if !strings.Contains(path, "$") {
-		return path, nil
+	result := path
+
+	// Expand placeholders {{key}} first
+	if strings.Contains(result, "{{") {
+		result = expandPlaceholders(result)
 	}
 
-	result := path
+	// If no $ in path, return as-is (backward compatibility with absolute paths)
+	if !strings.Contains(result, "$") {
+		return filepath.Clean(result), nil
+	}
 
 	// Special handling for $PWD (not an environment variable on all systems)
 	if strings.Contains(result, "$PWD") {
@@ -44,7 +55,23 @@ func ExpandPath(path string) (string, error) {
 		result = strings.ReplaceAll(result, "$PWD", pwd)
 	}
 
-	// Find all variables and check if they are defined
+	// Special handling for LNKR variables - use global config if env var not set
+	if strings.Contains(result, "$LNKR_REMOTE_ROOT") || strings.Contains(result, "${LNKR_REMOTE_ROOT}") {
+		value := GetRemoteRoot() // This already handles env > config > default priority
+		result = strings.ReplaceAll(result, "${LNKR_REMOTE_ROOT}", value)
+		result = strings.ReplaceAll(result, "$LNKR_REMOTE_ROOT", value)
+	}
+
+	if strings.Contains(result, "$LNKR_LOCAL_ROOT") || strings.Contains(result, "${LNKR_LOCAL_ROOT}") {
+		value := GetLocalRoot() // This already handles env > config priority
+		if value == "" {
+			return "", fmt.Errorf("LNKR_LOCAL_ROOT is not set in environment or config file")
+		}
+		result = strings.ReplaceAll(result, "${LNKR_LOCAL_ROOT}", value)
+		result = strings.ReplaceAll(result, "$LNKR_LOCAL_ROOT", value)
+	}
+
+	// Find all remaining variables and check if they are defined
 	matches := variablePattern.FindAllStringSubmatch(result, -1)
 	for _, match := range matches {
 		varName := match[1]
@@ -54,11 +81,35 @@ func ExpandPath(path string) (string, error) {
 		}
 	}
 
-	// Expand all environment variables
+	// Expand all remaining environment variables
 	result = os.ExpandEnv(result)
 
 	// Clean the path
 	return filepath.Clean(result), nil
+}
+
+// expandPlaceholders replaces {{key}} with values (env > config > default priority)
+func expandPlaceholders(path string) string {
+	return placeholderPattern.ReplaceAllStringFunc(path, func(match string) string {
+		// Extract key from {{key}}
+		submatch := placeholderPattern.FindStringSubmatch(match)
+		if len(submatch) < 2 {
+			return match
+		}
+		key := submatch[1]
+		switch key {
+		case "remote_root":
+			return GetRemoteRoot()
+		case "local_root":
+			return GetLocalRoot()
+		case "link_type":
+			return GetGlobalLinkType()
+		case "git_exclude_path":
+			return GetGlobalGitExcludePath()
+		default:
+			return match // Keep unknown placeholders as-is
+		}
+	})
 }
 
 // ContractPath converts an absolute path to use variables where possible.
@@ -86,10 +137,16 @@ func ContractPath(path string) string {
 
 	var replacements []replacement
 
-	// Collect possible replacements
-	if remoteRoot := os.Getenv("LNKR_REMOTE_ROOT"); remoteRoot != "" {
+	// Collect possible replacements (use global config which handles env > config priority)
+	if remoteRoot := GetRemoteRoot(); remoteRoot != "" {
 		if absRemoteRoot, err := filepath.Abs(remoteRoot); err == nil {
 			replacements = append(replacements, replacement{absRemoteRoot, VarLnkrRemoteRoot})
+		}
+	}
+
+	if localRoot := GetLocalRoot(); localRoot != "" {
+		if absLocalRoot, err := filepath.Abs(localRoot); err == nil {
+			replacements = append(replacements, replacement{absLocalRoot, VarLnkrLocalRoot})
 		}
 	}
 

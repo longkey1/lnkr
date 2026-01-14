@@ -31,32 +31,30 @@ This command will:
 			os.Exit(1)
 		}
 
-		// Get the number of depth from global config (env var > config file > default)
-		depth := lnkr.GetRemoteDepth()
+		// Get local root and remote root from global config (env var > config file > default)
+		localRoot := lnkr.GetLocalRoot()
+		remoteRoot := lnkr.GetRemoteRoot()
 
-		// Get base directory for remote from global config (env var > config file > default)
-		baseDir := lnkr.GetRemoteRoot()
-
-		// Check if base directory exists
-		if info, err := os.Stat(baseDir); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: base directory does not exist: %s\n", baseDir)
+		// Check if remote root directory exists
+		if info, err := os.Stat(remoteRoot); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Error: remote root directory does not exist: %s\n", remoteRoot)
 			os.Exit(1)
 		} else if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: failed to stat base directory: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: failed to stat remote root directory: %v\n", err)
 			os.Exit(1)
 		} else if !info.IsDir() {
-			fmt.Fprintf(os.Stderr, "Error: base path is not a directory: %s\n", baseDir)
+			fmt.Fprintf(os.Stderr, "Error: remote root path is not a directory: %s\n", remoteRoot)
 			os.Exit(1)
 		}
 
 		// Get remote directory from flag or default
 		if remoteDir == "" {
 			// Use lnkr package function to get default remote path
-			remoteDir = lnkr.GetDefaultRemotePath(currentDir, baseDir, depth)
+			remoteDir = lnkr.GetDefaultRemotePath(currentDir, localRoot, remoteRoot)
 		} else {
-			// If remoteDir is specified, make it absolute path based on baseDir
+			// If remoteDir is specified, make it absolute path based on remoteRoot
 			if !filepath.IsAbs(remoteDir) {
-				remoteDir = filepath.Join(baseDir, remoteDir)
+				remoteDir = filepath.Join(remoteRoot, remoteDir)
 			}
 		}
 
@@ -74,6 +72,6 @@ This command will:
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	initCmd.Flags().StringVarP(&remoteDir, "remote", "r", "", "Remote directory to save in .lnkr.toml (if not specified, uses LNKR_REMOTE_ROOT/project-name or parent-dir/current-dir based on LNKR_REMOTE_DEPTH)")
+	initCmd.Flags().StringVarP(&remoteDir, "remote", "r", "", "Remote directory to save in .lnkr.toml (if not specified, uses remote_root + relative path from local_root)")
 	initCmd.Flags().StringVar(&gitExcludePath, "git-exclude-path", "", "Custom path for git exclude file (default: .git/info/exclude)")
 }

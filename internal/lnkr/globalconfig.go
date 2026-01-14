@@ -11,7 +11,7 @@ import (
 // Config keys
 const (
 	ConfigKeyRemoteRoot     = "remote_root"
-	ConfigKeyRemoteDepth    = "remote_depth"
+	ConfigKeyLocalRoot      = "local_root"
 	ConfigKeyLinkType       = "link_type"
 	ConfigKeyGitExcludePath = "git_exclude_path"
 )
@@ -31,7 +31,7 @@ func InitGlobalConfig() {
 	if homeDir != "" {
 		viper.SetDefault(ConfigKeyRemoteRoot, filepath.Join(homeDir, ".config", "lnkr"))
 	}
-	viper.SetDefault(ConfigKeyRemoteDepth, DefaultRemoteDepth)
+	// local_root has no default - when empty, uses current directory name only
 	viper.SetDefault(ConfigKeyLinkType, LinkTypeSymbolic)
 	viper.SetDefault(ConfigKeyGitExcludePath, GitExcludePath)
 
@@ -51,10 +51,10 @@ func GetRemoteRoot() string {
 	return viper.GetString(ConfigKeyRemoteRoot)
 }
 
-// GetRemoteDepth returns the remote depth for default path generation.
-// Priority: environment variable > config file > default value
-func GetRemoteDepth() int {
-	return viper.GetInt(ConfigKeyRemoteDepth)
+// GetLocalRoot returns the local root directory for calculating relative paths.
+// Priority: environment variable > config file > empty (uses current dir name only)
+func GetLocalRoot() string {
+	return viper.GetString(ConfigKeyLocalRoot)
 }
 
 // GetGlobalLinkType returns the default link type.

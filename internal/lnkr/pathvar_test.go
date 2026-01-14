@@ -7,6 +7,9 @@ import (
 )
 
 func TestExpandPath(t *testing.T) {
+	// Initialize viper for global config
+	InitGlobalConfig()
+
 	// Save and restore environment variables
 	origHome := os.Getenv("HOME")
 	origRemoteRoot := os.Getenv("LNKR_REMOTE_ROOT")
@@ -112,6 +115,9 @@ func TestExpandPath_PWD(t *testing.T) {
 }
 
 func TestContractPath(t *testing.T) {
+	// Initialize viper for global config
+	InitGlobalConfig()
+
 	// Save and restore environment variables
 	origHome := os.Getenv("HOME")
 	origRemoteRoot := os.Getenv("LNKR_REMOTE_ROOT")

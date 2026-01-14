@@ -138,9 +138,22 @@ lnkr clean
 
 The `.lnkr.toml` file is automatically managed as a symbolic link to the remote directory. You don't need to add it to `[[links]]` - it is implicitly included.
 
+### Path formats
+
+Paths can be specified as:
+- **Placeholders**: `{{remote_root}}`, `{{local_root}}` (env > config > default priority)
+- **Environment variables**: `$HOME`, `$PWD`, or any environment variable
+- **Absolute paths**: `/Users/me/workspace`
+
 ```toml
-local = "/workspace"
-remote = "/backup/project"
+# Using placeholders (recommended - uses env > config > default priority)
+local = "{{local_root}}/github.com/user/project"
+remote = "{{remote_root}}/github.com/user/project"
+
+# Or absolute paths
+local = "/Users/me/src/github.com/user/project"
+remote = "/backup/dotfiles/github.com/user/project"
+
 link_type = "sym"  # or "hard"; default is "sym"
 git_exclude_path = ".git/info/exclude"
 
@@ -151,12 +164,16 @@ type = "sym"
 [[links]]
 path = "config/"
 type = "sym"
-
-# .lnkr.toml is automatically managed as a symbolic link to remote
-# [[links]]
-# path = ".lnkr.toml"
-# type = "sym"
 ```
+
+**Supported placeholders** (env > config > default priority):
+- `{{remote_root}}` - remote files directory
+- `{{local_root}}` - base directory for local paths
+- `{{link_type}}` - default link type
+- `{{git_exclude_path}}` - git exclude file path
+
+**Supported environment variables:**
+- `$HOME`, `$PWD`, and any environment variable
 
 ## Global Configuration
 
@@ -164,7 +181,7 @@ You can configure default settings in `~/.config/lnkr/config.toml`:
 
 ```toml
 remote_root = "/path/to/your/dotfiles"
-remote_depth = 2
+local_root = "/Users/me/src"
 link_type = "sym"
 git_exclude_path = ".git/info/exclude"
 ```
@@ -172,22 +189,43 @@ git_exclude_path = ".git/info/exclude"
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `remote_root` | Base directory for remote paths | `$HOME/.config/lnkr` |
-| `remote_depth` | Directory levels to include in default remote path | `2` |
+| `local_root` | Base directory for calculating relative paths | (empty: uses current dir name only) |
 | `link_type` | Default link type (`sym` or `hard`) | `sym` |
 | `git_exclude_path` | Path to git exclude file | `.git/info/exclude` |
 
+### How `local_root` works
+
+When `local_root` is set, the relative path from `local_root` to the current directory is used as the remote path:
+
+```
+local_root = "/Users/me/src"
+remote_root = "/backup/dotfiles"
+
+# In /Users/me/src/github.com/user/project:
+# → remote = /backup/dotfiles/github.com/user/project
+```
+
+When `local_root` is empty, only the current directory name is used:
+
+```
+# In /Users/me/src/github.com/user/project:
+# → remote = /backup/dotfiles/project
+```
+
 ## Environment Variables
 
-Environment variables override config file settings:
+Environment variables can override config file settings:
 
 | Variable | Overrides |
 |----------|-----------|
 | `LNKR_REMOTE_ROOT` | `remote_root` |
-| `LNKR_REMOTE_DEPTH` | `remote_depth` |
+| `LNKR_LOCAL_ROOT` | `local_root` |
 | `LNKR_LINK_TYPE` | `link_type` |
 | `LNKR_GIT_EXCLUDE_PATH` | `git_exclude_path` |
 
 **Priority**: Environment variables > Config file > Default values
+
+Note: For `.lnkr.toml` paths, use `{{config.remote_root}}` placeholders instead of `$LNKR_REMOTE_ROOT` environment variables for better portability.
 
 ## Link Types
 
