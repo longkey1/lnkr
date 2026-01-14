@@ -106,10 +106,6 @@ func expandPlaceholders(path string) string {
 			return GetRemoteRoot()
 		case "local_root":
 			return GetLocalRoot()
-		case "link_type":
-			return GetGlobalLinkType()
-		case "git_exclude_path":
-			return GetGlobalGitExcludePath()
 		default:
 			return match // Keep unknown placeholders as-is
 		}

@@ -171,8 +171,6 @@ type = "sym"
 **Supported placeholders** (env > config > default priority):
 - `{{remote_root}}` - remote files directory
 - `{{local_root}}` - base directory for local paths
-- `{{link_type}}` - default link type
-- `{{git_exclude_path}}` - git exclude file path
 
 **Supported environment variables:**
 - `$HOME`, `$PWD`, and any environment variable
