@@ -32,8 +32,17 @@ This command will:
 		}
 
 		// Get local root and remote root from global config (env var > config file > default)
-		localRoot := lnkr.GetLocalRoot()
-		remoteRoot := lnkr.GetRemoteRoot()
+		// Expand environment variables in the paths
+		localRoot, err := lnkr.ExpandPath(lnkr.GetLocalRoot())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to expand local root: %v\n", err)
+			os.Exit(1)
+		}
+		remoteRoot, err := lnkr.ExpandPath(lnkr.GetRemoteRoot())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to expand remote root: %v\n", err)
+			os.Exit(1)
+		}
 
 		// Check if remote root directory exists
 		if info, err := os.Stat(remoteRoot); os.IsNotExist(err) {

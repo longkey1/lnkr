@@ -45,16 +45,16 @@ func InitGlobalConfig() {
 	_ = viper.ReadInConfig()
 }
 
-// GetRemoteRoot returns the remote root directory.
+// GetRemoteRoot returns the remote root directory with environment variables expanded.
 // Priority: environment variable > config file > default value
 func GetRemoteRoot() string {
-	return viper.GetString(ConfigKeyRemoteRoot)
+	return os.ExpandEnv(viper.GetString(ConfigKeyRemoteRoot))
 }
 
-// GetLocalRoot returns the local root directory for calculating relative paths.
+// GetLocalRoot returns the local root directory for calculating relative paths with environment variables expanded.
 // Priority: environment variable > config file > empty (uses current dir name only)
 func GetLocalRoot() string {
-	return viper.GetString(ConfigKeyLocalRoot)
+	return os.ExpandEnv(viper.GetString(ConfigKeyLocalRoot))
 }
 
 // GetGlobalLinkType returns the default link type.
