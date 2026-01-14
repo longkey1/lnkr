@@ -82,12 +82,16 @@ func createLinkEntry(link Link, config *Config) error {
 	switch link.Type {
 	case LinkTypeHard:
 		if sourceInfo.IsDir() {
-			return fmt.Errorf("hard links cannot be created for directories: %s", sourceAbs)
+			// For directories, recursively create hard links for all files
+			if err := createHardLinksRecursively(sourceAbs, targetAbs); err != nil {
+				return fmt.Errorf("failed to create hard links for directory: %w", err)
+			}
+		} else {
+			if err := os.Link(sourceAbs, targetAbs); err != nil {
+				return fmt.Errorf("failed to create hard link: %w", err)
+			}
+			fmt.Printf("Created hard link: %s -> %s\n", targetAbs, sourceAbs)
 		}
-		if err := os.Link(sourceAbs, targetAbs); err != nil {
-			return fmt.Errorf("failed to create hard link: %w", err)
-		}
-		fmt.Printf("Created hard link: %s -> %s\n", targetAbs, sourceAbs)
 	case LinkTypeSymbolic:
 		if err := os.Symlink(sourceAbs, targetAbs); err != nil {
 			return fmt.Errorf("failed to create symbolic link: %w", err)
@@ -97,6 +101,54 @@ func createLinkEntry(link Link, config *Config) error {
 		return fmt.Errorf("unknown link type: %s", link.Type)
 	}
 
+	return nil
+}
+
+// createHardLinksRecursively walks the source directory and creates hard links for all files
+func createHardLinksRecursively(sourceDir, targetDir string) error {
+	var fileCount int
+	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Calculate relative path from source directory
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		targetPath := filepath.Join(targetDir, relPath)
+
+		if info.IsDir() {
+			// Create directory structure
+			if err := os.MkdirAll(targetPath, info.Mode()); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+			return nil
+		}
+
+		// Check if target file already exists
+		if _, err := os.Stat(targetPath); err == nil {
+			fmt.Printf("Warning: target already exists: %s\n", targetPath)
+			return nil
+		}
+
+		// Create hard link for file
+		if err := os.Link(path, targetPath); err != nil {
+			return fmt.Errorf("failed to create hard link %s -> %s: %w", targetPath, path, err)
+		}
+		fmt.Printf("Created hard link: %s -> %s\n", targetPath, path)
+		fileCount++
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Created %d hard links for directory: %s\n", fileCount, sourceDir)
 	return nil
 }
 

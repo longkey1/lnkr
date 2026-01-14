@@ -156,9 +156,15 @@ func checkLinkStatus(link Link, config *Config) LinkStatus {
 		status.IsLink = true
 
 	case LinkTypeHard:
-		// Check if the file exists and is not a directory
+		// Check if it's a directory
 		if info.IsDir() {
-			status.Error = "Hard links cannot be created for directories"
+			// For directories, check recursively that all files are hard linked
+			err := checkHardLinksRecursively(status.LocalPath, status.RemotePath)
+			if err != nil {
+				status.Error = err.Error()
+				return status
+			}
+			status.IsLink = true
 			return status
 		}
 
@@ -197,6 +203,51 @@ func checkLinkStatus(link Link, config *Config) LinkStatus {
 	}
 
 	return status
+}
+
+// checkHardLinksRecursively verifies that all files in localDir are hard linked to corresponding files in remoteDir
+func checkHardLinksRecursively(localDir, remoteDir string) error {
+	return filepath.Walk(localDir, func(localPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Calculate relative path
+		relPath, err := filepath.Rel(localDir, localPath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		remotePath := filepath.Join(remoteDir, relPath)
+
+		// Check if remote file exists
+		remoteInfo, err := os.Stat(remotePath)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("remote file not found: %s", remotePath)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot access remote file %s: %w", remotePath, err)
+		}
+
+		// Compare inodes
+		localInode := getInode(info)
+		remoteInode := getInode(remoteInfo)
+
+		if localInode == 0 || remoteInode == 0 {
+			return fmt.Errorf("cannot determine inode for %s", localPath)
+		}
+
+		if localInode != remoteInode {
+			return fmt.Errorf("file %s is not hard linked (different inodes)", relPath)
+		}
+
+		return nil
+	})
 }
 
 func getInode(fileInfo os.FileInfo) uint64 {
