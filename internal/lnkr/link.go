@@ -19,9 +19,11 @@ func CreateLinks() error {
 		return nil
 	}
 
+	var errorCount int
 	for _, link := range config.Links {
 		if err := createLinkEntry(link, config); err != nil {
 			fmt.Printf("Error creating link for %s: %v\n", link.Path, err)
+			errorCount++
 			continue
 		}
 	}
@@ -31,7 +33,16 @@ func CreateLinks() error {
 		fmt.Printf("Warning: failed to apply link paths to GitExclude: %v\n", err)
 	}
 
-	fmt.Println("Link creation completed.")
+	totalCount := len(config.Links)
+	successCount := totalCount - errorCount
+	if errorCount == 0 {
+		fmt.Printf("Link creation completed. (%d/%d succeeded)\n", successCount, totalCount)
+	} else if successCount == 0 {
+		fmt.Printf("Link creation failed. (%d/%d failed)\n", errorCount, totalCount)
+		return fmt.Errorf("all %d links failed to create", errorCount)
+	} else {
+		fmt.Printf("Link creation completed with errors. (%d/%d succeeded, %d failed)\n", successCount, totalCount, errorCount)
+	}
 	return nil
 }
 

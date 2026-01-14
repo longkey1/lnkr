@@ -93,6 +93,7 @@ func ExpandPath(path string) (string, error) {
 }
 
 // expandPlaceholders replaces {{key}} with values (env > config > default priority)
+// Note: Values from config may contain env vars like ${HOME}, so we expand them
 func expandPlaceholders(path string) string {
 	return placeholderPattern.ReplaceAllStringFunc(path, func(match string) string {
 		// Extract key from {{key}}
@@ -103,9 +104,9 @@ func expandPlaceholders(path string) string {
 		key := submatch[1]
 		switch key {
 		case "remote_root":
-			return GetRemoteRoot()
+			return os.ExpandEnv(GetRemoteRoot())
 		case "local_root":
-			return GetLocalRoot()
+			return os.ExpandEnv(GetLocalRoot())
 		default:
 			return match // Keep unknown placeholders as-is
 		}
@@ -140,14 +141,17 @@ func ContractPath(path string) string {
 
 	// Collect possible replacements (use global config which handles env > config priority)
 	// Use {{placeholder}} format for lnkr-specific variables
+	// Note: GetRemoteRoot/GetLocalRoot may contain unexpanded env vars like ${HOME}
 	if remoteRoot := GetRemoteRoot(); remoteRoot != "" {
-		if absRemoteRoot, err := filepath.Abs(remoteRoot); err == nil {
+		expandedRemoteRoot := os.ExpandEnv(remoteRoot)
+		if absRemoteRoot, err := filepath.Abs(expandedRemoteRoot); err == nil {
 			replacements = append(replacements, replacement{absRemoteRoot, PlaceholderRemoteRoot})
 		}
 	}
 
 	if localRoot := GetLocalRoot(); localRoot != "" {
-		if absLocalRoot, err := filepath.Abs(localRoot); err == nil {
+		expandedLocalRoot := os.ExpandEnv(localRoot)
+		if absLocalRoot, err := filepath.Abs(expandedLocalRoot); err == nil {
 			replacements = append(replacements, replacement{absLocalRoot, PlaceholderLocalRoot})
 		}
 	}
