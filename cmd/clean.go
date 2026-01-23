@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/longkey1/lnkr/internal/lnkr"
 	"github.com/spf13/cobra"
 )
@@ -17,11 +14,8 @@ var cleanCmd = &cobra.Command{
 This command will:
 - Remove .lnkr.toml configuration file if it exists
 - Remove .lnkr.toml entry from .git/info/exclude`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := lnkr.Clean(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return lnkr.Clean()
 	},
 }
 

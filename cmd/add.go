@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/longkey1/lnkr/internal/lnkr"
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ This command will:
 - Add the entry to .lnkr.toml configuration
 - If recursive flag is set with hard links, it will also add all files in the directory`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		recursive, _ := cmd.Flags().GetBool("recursive")
 		linkTypeFlag, _ := cmd.Flags().GetString("type")
 		path := args[0]
@@ -28,16 +27,14 @@ This command will:
 		// Load config to get default link type
 		config, err := lnkr.LoadConfigForCLI()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		// Determine link type: use flag if explicitly set, otherwise use config default
 		linkType := config.GetLinkType()
 		if linkTypeFlag != "" {
 			if linkTypeFlag != lnkr.LinkTypeSymbolic && linkTypeFlag != lnkr.LinkTypeHard && linkTypeFlag != "symbolic" {
-				fmt.Fprintf(os.Stderr, "Error: invalid link type %q. Must be 'sym' or 'hard'\n", linkTypeFlag)
-				os.Exit(1)
+				return fmt.Errorf("invalid link type %q. Must be 'sym' or 'hard'", linkTypeFlag)
 			}
 			// Normalize "symbolic" to "sym"
 			if linkTypeFlag == "symbolic" {
@@ -47,10 +44,7 @@ This command will:
 			}
 		}
 
-		if err := lnkr.Add(path, recursive, linkType); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
+		return lnkr.Add(path, recursive, linkType)
 	},
 }
 

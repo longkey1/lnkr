@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/longkey1/lnkr/internal/lnkr"
 	"github.com/longkey1/lnkr/internal/version"
 	"github.com/spf13/cobra"
@@ -14,15 +12,14 @@ var rootCmd = &cobra.Command{
 	Short: "A link helper CLI tool",
 	Long: `lnkr is a command line tool for managing and working with links.
 It provides various utilities for link manipulation, validation, and management.`,
-	Version: version.GetVersion(),
+	Version:       version.GetVersion(),
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+func Execute() error {
+	return rootCmd.Execute()
 }
 
 func init() {
