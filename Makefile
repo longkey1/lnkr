@@ -51,6 +51,25 @@ dryrun ?= true
 type ?=
 
 .PHONY: release
+
+# Get current version from git tag
+VERSION := $(shell v=$$(git tag --sort=-v:refname | head -n1 2>/dev/null); [ -n "$$v" ] && echo "$$v" || echo "v0.0.0")
+MAJOR := $(shell echo $(VERSION) | cut -d. -f1 | tr -d 'v')
+MINOR := $(shell echo $(VERSION) | cut -d. -f2)
+PATCH := $(shell echo $(VERSION) | cut -d. -f3)
+
+# Calculate next version based on release type
+define next_version
+$(if $(filter patch,$1),v$(MAJOR).$(MINOR).$(shell expr $(PATCH) + 1),\
+$(if $(filter minor,$1),v$(MAJOR).$(shell expr $(MINOR) + 1).0,\
+$(if $(filter major,$1),v$(shell expr $(MAJOR) + 1).0.0,\
+v$(MAJOR).$(MINOR).$(shell expr $(PATCH) + 1))))
+endef
+
+# Variables for release target
+dryrun ?= true
+type ?=
+
 release: ## Release target with type argument. Usage: make release type=patch|minor|major dryrun=false
 	@if [ "$(type)" = "" ]; then \
 		echo "Usage: make release type=<type> [dryrun=false]"; \
@@ -136,7 +155,6 @@ re-release: ## Rerelease target with tag argument. Usage: make re-release tag=<t
 		echo "Would create new tag at HEAD: $$TAG"; \
 		echo "Would push tag to origin: $$TAG"; \
 		echo "Would create new release for: $$TAG"; \
-		echo "GitHub Actions will build the release binary automatically"; \
 		echo ""; \
 		echo "To execute this re-release, run:"; \
 		if [ -n "$(tag)" ]; then \
@@ -146,18 +164,6 @@ re-release: ## Rerelease target with tag argument. Usage: make re-release tag=<t
 		fi; \
 		echo "Dry run complete."; \
 	fi
-
-.PHONY: release-dry-run
-release-dry-run: ## Run goreleaser in dry-run mode
-	goreleaser release --snapshot --clean --skip-publish
-
-.PHONY: release-snapshot
-release-snapshot: ## Create a snapshot release
-	goreleaser release --snapshot --clean --skip-publish
-
-.PHONY: install
-install: ## Install goreleaser
-	go install github.com/goreleaser/goreleaser@latest
 
 .PHONY: help
 help:
