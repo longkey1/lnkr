@@ -1,54 +1,36 @@
 .DEFAULT_GOAL := help
 
-export GO_VERSION=$(shell if [ -f go.mod ]; then grep "^go " go.mod | sed 's/^go //'; else curl -s https://go.dev/dl/ | grep -o 'go[0-9]\+\.[0-9]\+' | head -1 | sed 's/go//'; fi)
-export PRODUCT_NAME := lnkr
-
-.PHONY: init
-init: ## Initialize the project
-	mkdir -p .devcontainer
-	cd .devcontainer && cat devcontainer.json.dist | envsubst '$${GO_VERSION} $${PRODUCT_NAME}' > devcontainer.json
+export GO_VERSION=$(shell grep "^go " go.mod | sed 's/^go //')
+export PRODUCT_NAME=$(shell cat .product_name 2>/dev/null || echo "unknown")
 
 .PHONY: build
-build: ## Build the application
-	go build -o bin/lnkr .
-
-.PHONY: build-dev
-build-dev: ## Build the application with development version info
-	@COMMIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-	BUILD_TIME=$$(date -u '+%Y-%m-%dT%H:%M:%SZ'); \
-	LDFLAGS="-X github.com/longkey1/lnkr/internal/version.Version=dev -X github.com/longkey1/lnkr/internal/version.CommitSHA=$$COMMIT_SHA -X github.com/longkey1/lnkr/internal/version.BuildTime=$$BUILD_TIME"; \
-	go build -ldflags "$$LDFLAGS" -o bin/lnkr .
+build: ## Build the binary to ./bin/
+	@mkdir -p bin
+	go build -o bin/$(PRODUCT_NAME)
 
 .PHONY: test
 test: ## Run tests
-	go test -v ./...
-
-.PHONY: lint
-lint: ## Run linter
-	golangci-lint run
+	go test ./...
 
 .PHONY: fmt
-fmt: ## Format Go code with gofmt
-	gofmt -s -w .
+fmt: ## Format code
+	go fmt ./...
 
-.PHONY: fmt-check
-fmt-check: ## Check formatting (fails if changes needed)
-	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "Needs formatting:"; echo "$$out"; exit 1; else echo "Formatting OK"; fi
+.PHONY: vet
+vet: ## Vet code
+	go vet ./...
+
+.PHONY: tidy
+tidy: ## Tidy dependencies
+	go mod tidy
 
 .PHONY: clean
 clean: ## Clean build artifacts
 	rm -rf bin/
-	rm -rf dist/
 
-# Get current version from git tag
-VERSION := $(shell v=$$(git tag --sort=-v:refname | head -n1 2>/dev/null); [ -n "$$v" ] && echo "$$v" || echo "v0.0.0")
-MAJOR := $(shell echo $(VERSION) | cut -d. -f1 | tr -d 'v')
-MINOR := $(shell echo $(VERSION) | cut -d. -f2)
-PATCH := $(shell echo $(VERSION) | cut -d. -f3)
-
-# Variables for release target
-dryrun ?= true
-type ?=
+.PHONY: tools
+tools: ## Install tools
+	go install github.com/goreleaser/goreleaser@latest
 
 .PHONY: release
 
@@ -168,4 +150,3 @@ re-release: ## Rerelease target with tag argument. Usage: make re-release tag=<t
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
