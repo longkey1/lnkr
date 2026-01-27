@@ -1,35 +1,36 @@
-/.devcontainer/devcontainer.json
+# Build outputs
+/bin/
+/dist/
 
-# Binaries for programs and plugins
+# Executables
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
+# Test binary
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories (remove the comment below to include it)
+# Go workspace
+go.work
+go.work.sum
 vendor/
 
-# Go workspace file
-go.work
+# Environment
+.env
+.envrc
+.direnv/
 
-# Build directory
-pkg/
-bin/
+# Cache
+/.cache/
 
-# IDE specific files
-.devcontainer/
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Local environment
-.envrc
-.cache/
+# OS
+.DS_Store
+Thumbs.db

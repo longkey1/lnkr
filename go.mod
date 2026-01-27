@@ -1,6 +1,6 @@
 module github.com/longkey1/lnkr
 
-go 1.24.3
+go 1.25
 
 require (
 	github.com/spf13/cobra v1.9.1
