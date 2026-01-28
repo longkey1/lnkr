@@ -13,6 +13,7 @@ func TestExpandPath(t *testing.T) {
 	// Save and restore environment variables
 	origHome := os.Getenv("HOME")
 	origRemoteRoot := os.Getenv("LNKR_REMOTE_ROOT")
+	origLocalRoot := os.Getenv("LNKR_LOCAL_ROOT")
 	defer func() {
 		os.Setenv("HOME", origHome)
 		if origRemoteRoot != "" {
@@ -20,11 +21,17 @@ func TestExpandPath(t *testing.T) {
 		} else {
 			os.Unsetenv("LNKR_REMOTE_ROOT")
 		}
+		if origLocalRoot != "" {
+			os.Setenv("LNKR_LOCAL_ROOT", origLocalRoot)
+		} else {
+			os.Unsetenv("LNKR_LOCAL_ROOT")
+		}
 	}()
 
 	// Set test environment variables
 	os.Setenv("HOME", "/home/testuser")
 	os.Setenv("LNKR_REMOTE_ROOT", "/remote/root")
+	os.Setenv("LNKR_LOCAL_ROOT", "/local/root")
 
 	tests := []struct {
 		name    string
@@ -61,6 +68,21 @@ func TestExpandPath(t *testing.T) {
 			name: "combined variables",
 			path: "$HOME/work/$LNKR_REMOTE_ROOT",
 			want: "/home/testuser/work//remote/root",
+		},
+		{
+			name: "expand {{remote_root}} placeholder",
+			path: "{{remote_root}}/project",
+			want: "/remote/root/project",
+		},
+		{
+			name: "expand {{local_root}} placeholder",
+			path: "{{local_root}}/file",
+			want: "/local/root/file",
+		},
+		{
+			name: "combined placeholder and variable",
+			path: "{{remote_root}}/$HOME/data",
+			want: "/remote/root//home/testuser/data",
 		},
 	}
 
@@ -191,25 +213,8 @@ func TestContractPath(t *testing.T) {
 	}
 }
 
-func TestContractPath_PWD(t *testing.T) {
-	pwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-
-	// Contract current directory should become $PWD
-	got := ContractPath(pwd)
-	if got != "$PWD" {
-		t.Errorf("ContractPath(%s) = %v, want $PWD", pwd, got)
-	}
-
-	// Contract subdirectory of PWD
-	subPath := filepath.Join(pwd, "subdir")
-	got = ContractPath(subPath)
-	if got != "$PWD/subdir" {
-		t.Errorf("ContractPath(%s) = %v, want $PWD/subdir", subPath, got)
-	}
-}
+// TestContractPath_PWD removed: $PWD is not used in ContractPath anymore
+// for better config portability. Use {{local_root}} or {{remote_root}} instead.
 
 func TestBackwardCompatibility(t *testing.T) {
 	// Test that absolute paths (old format) still work

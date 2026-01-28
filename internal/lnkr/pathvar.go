@@ -160,9 +160,8 @@ func ContractPath(path string) string {
 		replacements = append(replacements, replacement{home, VarHome})
 	}
 
-	if pwd, err := os.Getwd(); err == nil {
-		replacements = append(replacements, replacement{pwd, VarPWD})
-	}
+	// Note: $PWD is not used for ContractPath because it changes based on execution context.
+	// For portable config files, prefer {{local_root}}/{{remote_root}}/$HOME instead.
 
 	// Find the best match (longest prefix)
 	var bestMatch replacement

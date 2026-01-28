@@ -3,7 +3,6 @@ package lnkr
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -38,8 +37,14 @@ func InitGlobalConfig() {
 	// Enable environment variable binding
 	// LNKR_REMOTE_ROOT -> remote_root
 	viper.SetEnvPrefix("LNKR")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
+
+	// Explicitly bind environment variables to config keys
+	// This ensures LNKR_LOCAL_ROOT maps to "local_root" key correctly
+	_ = viper.BindEnv(ConfigKeyRemoteRoot, "LNKR_REMOTE_ROOT")
+	_ = viper.BindEnv(ConfigKeyLocalRoot, "LNKR_LOCAL_ROOT")
+	_ = viper.BindEnv(ConfigKeyLinkType, "LNKR_LINK_TYPE")
+	_ = viper.BindEnv(ConfigKeyGitExcludePath, "LNKR_GIT_EXCLUDE_PATH")
 
 	// Read config file (ignore error if not found)
 	_ = viper.ReadInConfig()
