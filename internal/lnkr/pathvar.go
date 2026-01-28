@@ -156,12 +156,9 @@ func ContractPath(path string) string {
 		}
 	}
 
-	if home, err := os.UserHomeDir(); err == nil {
-		replacements = append(replacements, replacement{home, VarHome})
-	}
-
-	// Note: $PWD is not used for ContractPath because it changes based on execution context.
-	// For portable config files, prefer {{local_root}}/{{remote_root}}/$HOME instead.
+	// Note: $HOME and $PWD are not used for ContractPath because they change based on execution context.
+	// For portable config files, use {{local_root}}/{{remote_root}} placeholders only.
+	// Environment variables like $HOME can still be used in existing configs and will be expanded correctly.
 
 	// Find the best match (longest prefix)
 	var bestMatch replacement

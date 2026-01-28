@@ -182,14 +182,14 @@ func TestContractPath(t *testing.T) {
 			want: "{{remote_root}}/project",
 		},
 		{
-			name: "contract to $HOME",
+			name: "path outside local_root/remote_root stays absolute",
 			path: "/home/testuser/documents",
-			want: "$HOME/documents",
+			want: "/home/testuser/documents",
 		},
 		{
-			name: "exact match $HOME",
+			name: "$HOME path stays absolute when not matched by placeholders",
 			path: "/home/testuser",
-			want: "$HOME",
+			want: "/home/testuser",
 		},
 		{
 			name: "exact match {{remote_root}}",
