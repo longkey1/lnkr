@@ -107,7 +107,7 @@ func Switch(path string, newType string) error {
 
 	if fi.IsDir() || isHardLinkedDir {
 		// Handle directory conversion
-		return switchDirectory(config, targetIndex, path, localDir, remoteDir, currentType, targetType, isHardLinkedDir)
+		return switchDirectory(config, targetIndex, path, localDir, remoteDir, currentType, targetType)
 	}
 
 	// Handle file conversion
@@ -141,7 +141,7 @@ func switchFile(config *Config, targetIndex int, path, localPath, remotePath, cu
 }
 
 // switchDirectory handles directory link type conversion
-func switchDirectory(config *Config, targetIndex int, path, localDir, remoteDir, currentType, targetType string, isHardLinkedDir bool) error {
+func switchDirectory(config *Config, targetIndex int, path, localDir, remoteDir, currentType, targetType string) error {
 	localPath := filepath.Join(localDir, path)
 	remotePath := filepath.Join(remoteDir, path)
 

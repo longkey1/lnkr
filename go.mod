@@ -1,14 +1,14 @@
 module github.com/longkey1/lnkr
 
-go 1.25
+go 1.26
 
 require (
+	github.com/BurntSushi/toml v1.5.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
 )
 
 require (
-	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

@@ -24,10 +24,27 @@ func Status() error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
+	// Display root paths
+	localRoot := config.Local
+	remoteRoot := config.Remote
+	if localRoot == "" {
+		localRoot = "(not set)"
+	}
+	if remoteRoot == "" {
+		remoteRoot = "(not set)"
+	}
+	fmt.Printf("Local Root:  %s\n", localRoot)
+	fmt.Printf("Remote Root: %s\n", remoteRoot)
+	fmt.Println()
+
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
 		return nil
 	}
+
+	// Get expanded paths for display
+	localExpanded, _ := config.GetLocalExpanded()
+	remoteExpanded, _ := config.GetRemoteExpanded()
 
 	var statuses []LinkStatus
 	for _, link := range config.Links {
@@ -35,17 +52,19 @@ func Status() error {
 		statuses = append(statuses, status)
 	}
 
-	// Calculate max width for each column
+	// Calculate max width for each column using placeholder paths
 	maxLocalPath := len("Local Path")
 	maxRemotePath := len("Remote Path")
 	maxType := len("Type")
 	maxStatus := len("Status")
 	for _, s := range statuses {
-		if len(s.LocalPath) > maxLocalPath {
-			maxLocalPath = len(s.LocalPath)
+		localDisplay := toPlaceholderPath(s.LocalPath, localExpanded, "{local}")
+		remoteDisplay := toPlaceholderPath(s.RemotePath, remoteExpanded, "{remote}")
+		if len(localDisplay) > maxLocalPath {
+			maxLocalPath = len(localDisplay)
 		}
-		if len(s.RemotePath) > maxRemotePath {
-			maxRemotePath = len(s.RemotePath)
+		if len(remoteDisplay) > maxRemotePath {
+			maxRemotePath = len(remoteDisplay)
 		}
 		if len(s.Type) > maxType {
 			maxType = len(s.Type)
@@ -62,13 +81,26 @@ func Status() error {
 	fmt.Println(header)
 	fmt.Println(sep)
 
-	// Print each status
+	// Print each status with placeholder paths
 	for _, s := range statuses {
+		localDisplay := toPlaceholderPath(s.LocalPath, localExpanded, "{local}")
+		remoteDisplay := toPlaceholderPath(s.RemotePath, remoteExpanded, "{remote}")
 		st := getStatusText(s)
-		fmt.Printf("%-*s  %-*s  %-*s  %-*s\n", maxLocalPath, s.LocalPath, maxRemotePath, s.RemotePath, maxType, s.Type, maxStatus, st)
+		fmt.Printf("%-*s  %-*s  %-*s  %-*s\n", maxLocalPath, localDisplay, maxRemotePath, remoteDisplay, maxType, s.Type, maxStatus, st)
 	}
 
 	return nil
+}
+
+// toPlaceholderPath replaces the root path with a placeholder
+func toPlaceholderPath(fullPath, rootPath, placeholder string) string {
+	if rootPath == "" || fullPath == "" {
+		return fullPath
+	}
+	if strings.HasPrefix(fullPath, rootPath) {
+		return placeholder + strings.TrimPrefix(fullPath, rootPath)
+	}
+	return fullPath
 }
 
 func getStatusText(status LinkStatus) string {
