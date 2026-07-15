@@ -39,7 +39,7 @@ func TestUnlink(t *testing.T) {
 				t.Fatalf("failed to create links: %v", err)
 			}
 
-			if err := Unlink(); err != nil {
+			if err := Unlink(false, true); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -67,12 +67,60 @@ func TestUnlink(t *testing.T) {
 	}
 }
 
+func TestUnlinkKeepsUnlinkedFilesInHardDir(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{
+		Links: []Link{{Path: "conf", Type: LinkTypeHard}},
+	})
+	writeFiles(t, remoteDir, map[string]string{"conf/a.txt": "a"})
+
+	if err := CreateLinks(); err != nil {
+		t.Fatalf("failed to create links: %v", err)
+	}
+
+	// A file added after linking is not a hard link to remote.
+	writeFiles(t, localDir, map[string]string{"conf/extra.txt": "extra"})
+
+	if err := Unlink(false, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The linked file must be removed, the unrelated file must survive.
+	if _, err := os.Lstat(filepath.Join(localDir, "conf", "a.txt")); !os.IsNotExist(err) {
+		t.Fatalf("linked file still exists after unlink")
+	}
+	content, err := os.ReadFile(filepath.Join(localDir, "conf", "extra.txt"))
+	if err != nil {
+		t.Fatalf("unrelated file was removed by unlink: %v", err)
+	}
+	if string(content) != "extra" {
+		t.Fatalf("unexpected content: got %q, want %q", content, "extra")
+	}
+}
+
+func TestUnlinkDryRun(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{
+		Links: []Link{{Path: "a.txt", Type: LinkTypeSymbolic}},
+	})
+	writeFiles(t, remoteDir, map[string]string{"a.txt": "a"})
+
+	if err := CreateLinks(); err != nil {
+		t.Fatalf("failed to create links: %v", err)
+	}
+
+	if err := Unlink(true, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The link must still be in place after a dry run.
+	assertLink(t, filepath.Join(localDir, "a.txt"), filepath.Join(remoteDir, "a.txt"), LinkTypeSymbolic)
+}
+
 func TestUnlinkMissingLocalSkipped(t *testing.T) {
 	setupProject(t, &Config{
 		Links: []Link{{Path: "ghost.txt", Type: LinkTypeSymbolic}},
 	})
 
-	if err := Unlink(); err != nil {
+	if err := Unlink(false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -80,7 +128,7 @@ func TestUnlinkMissingLocalSkipped(t *testing.T) {
 func TestUnlinkNoLinks(t *testing.T) {
 	setupProject(t, &Config{Links: []Link{}})
 
-	if err := Unlink(); err != nil {
+	if err := Unlink(false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

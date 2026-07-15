@@ -209,7 +209,7 @@ func TestAdd(t *testing.T) {
 			localDir, remoteDir := setupProject(t, &Config{Links: []Link{}})
 			writeFiles(t, localDir, tc.files)
 
-			err := Add(tc.addPath, tc.recursive, tc.linkType)
+			err := Add(tc.addPath, tc.recursive, tc.linkType, false)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error but got none")
@@ -251,12 +251,12 @@ func TestAddDuplicate(t *testing.T) {
 	localDir, _ := setupProject(t, &Config{Links: []Link{}})
 	writeFiles(t, localDir, map[string]string{"notes.txt": "content"})
 
-	if err := Add("notes.txt", false, LinkTypeSymbolic); err != nil {
+	if err := Add("notes.txt", false, LinkTypeSymbolic, false); err != nil {
 		t.Fatalf("unexpected error on first add: %v", err)
 	}
 
 	// Second add is a no-op because the path is already registered.
-	if err := Add("notes.txt", false, LinkTypeSymbolic); err != nil {
+	if err := Add("notes.txt", false, LinkTypeSymbolic, false); err != nil {
 		t.Fatalf("unexpected error on duplicate add: %v", err)
 	}
 
@@ -266,6 +266,75 @@ func TestAddDuplicate(t *testing.T) {
 	}
 	if len(config.Links) != 1 {
 		t.Fatalf("expected 1 link after duplicate add, got %d", len(config.Links))
+	}
+}
+
+func TestAddFromSubdirectory(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{Links: []Link{}})
+	writeFiles(t, localDir, map[string]string{"conf/a.txt": "a"})
+
+	// Paths are resolved relative to the current directory.
+	t.Chdir(filepath.Join(localDir, "conf"))
+
+	if err := Add("a.txt", false, LinkTypeSymbolic, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
+	}
+	want := []Link{{Path: "conf/a.txt", Type: LinkTypeSymbolic}}
+	if !slices.Equal(config.Links, want) {
+		t.Fatalf("unexpected links: got %+v, want %+v", config.Links, want)
+	}
+	assertLink(t, filepath.Join(localDir, "conf/a.txt"), filepath.Join(remoteDir, "conf/a.txt"), LinkTypeSymbolic)
+}
+
+func TestAddAbsolutePathInsideLocal(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{Links: []Link{}})
+	writeFiles(t, localDir, map[string]string{"notes.txt": "content"})
+
+	if err := Add(filepath.Join(localDir, "notes.txt"), false, LinkTypeSymbolic, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
+	}
+	want := []Link{{Path: "notes.txt", Type: LinkTypeSymbolic}}
+	if !slices.Equal(config.Links, want) {
+		t.Fatalf("unexpected links: got %+v, want %+v", config.Links, want)
+	}
+	assertLink(t, filepath.Join(localDir, "notes.txt"), filepath.Join(remoteDir, "notes.txt"), LinkTypeSymbolic)
+}
+
+func TestAddDryRun(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{Links: []Link{}})
+	writeFiles(t, localDir, map[string]string{"notes.txt": "content"})
+
+	if err := Add("notes.txt", false, LinkTypeSymbolic, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Nothing must change: no move, no link, no config entry.
+	fi, err := os.Lstat(filepath.Join(localDir, "notes.txt"))
+	if err != nil {
+		t.Fatalf("local file missing after dry run: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("local file was replaced by a link during dry run")
+	}
+	if _, err := os.Stat(filepath.Join(remoteDir, "notes.txt")); !os.IsNotExist(err) {
+		t.Fatalf("file was moved to remote during dry run")
+	}
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
+	}
+	if len(config.Links) != 0 {
+		t.Fatalf("config was modified during dry run: %+v", config.Links)
 	}
 }
 
@@ -292,7 +361,7 @@ func TestAddUnconfigured(t *testing.T) {
 				t.Fatalf("failed to save config: %v", err)
 			}
 
-			if err := Add("notes.txt", false, LinkTypeSymbolic); err == nil {
+			if err := Add("notes.txt", false, LinkTypeSymbolic, false); err == nil {
 				t.Fatalf("expected error but got none")
 			}
 		})

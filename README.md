@@ -41,7 +41,9 @@ lnkr link
 ## Commands
 
 ### init
-Initialize a new lnkr project.
+Initialize a new lnkr project. The remote directory is created automatically if it doesn't exist.
+
+Re-running `init` with different `local`/`remote` settings is rejected to protect existing links; pass `--force` to overwrite them intentionally.
 
 ```bash
 # Basic initialization
@@ -50,11 +52,11 @@ lnkr init
 # With remote directory
 lnkr init --remote /path/to/remote
 
-# Create remote directory if it doesn't exist
-lnkr init --remote /path/to/remote --with-create-remote
-
 # Custom git exclude path
 lnkr init --git-exclude-path .gitignore
+
+# Overwrite existing local/remote settings
+lnkr init --remote /path/to/new-remote --force
 ```
 
 ### add
@@ -62,6 +64,8 @@ Add files or directories to the link configuration. This command:
 1. Moves the specified file/directory from local to remote
 2. Creates a link from remote back to local
 3. Updates the GitExclude file
+
+Paths may be absolute or relative to the current directory (including subdirectories of the project), as long as they are inside the local directory.
 
 ```bash
 # Add single file (sym link by default)
@@ -75,20 +79,29 @@ lnkr add directory/
 
 # Add directory recursively with hard links (for all files)
 lnkr add directory/ --type hard --recursive
+
+# Preview without making changes
+lnkr add file.txt --dry-run
 ```
 
 ### link
 Create links based on configuration. Links are created from remote to local (remote is the source, local is the link target). This is useful when setting up a new machine or after cloning a repository.
+
+The command is idempotent: already-linked entries are skipped, and a local file that exists but is not a link to remote is reported as an error (it is never overwritten).
 
 ```bash
 lnkr link
 ```
 
 ### unlink
-Remove all links from the filesystem. This will also remove all link paths from the GitExclude file.
+Remove all links from the filesystem. The entries in `.lnkr.toml` and the files in remote are kept, so `lnkr link` can re-create the links later. This also removes all link paths from the GitExclude file.
+
+For hard-linked directories, files that are not linked to remote (e.g. added after linking) are kept.
 
 ```bash
-lnkr unlink
+lnkr unlink            # asks for confirmation
+lnkr unlink -y         # skip the confirmation prompt
+lnkr unlink --dry-run  # preview without making changes
 ```
 
 ### status
@@ -99,10 +112,11 @@ lnkr status
 ```
 
 ### remove
-Remove entries from the configuration. This will also update the GitExclude file with the remaining link paths.
+Remove entries from the configuration and restore the files from remote back to local (the reverse of `add`). This will also update the GitExclude file with the remaining link paths.
 
 ```bash
 lnkr remove path/to/remove
+lnkr remove path/to/remove --dry-run  # preview without making changes
 ```
 
 ### switch
@@ -128,10 +142,12 @@ For directories:
 - **hard → sym**: Removes hard links, creates single symlink (entries consolidate in config)
 
 ### clean
-Remove configuration file and clean up git exclusions.
+Remove the configuration file and clean up git exclusions. Links themselves are not touched; run `lnkr unlink` first if links are still in place (a warning is shown otherwise).
 
 ```bash
-lnkr clean
+lnkr clean            # asks for confirmation
+lnkr clean -y         # skip the confirmation prompt
+lnkr clean --dry-run  # preview without making changes
 ```
 
 ## Configuration (.lnkr.toml)

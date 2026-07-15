@@ -268,17 +268,7 @@ func TestSwitchDirectoryHardToSym(t *testing.T) {
 		t.Fatalf("failed to create hard link: %v", err)
 	}
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	t.Cleanup(func() {
-		os.Chdir(originalWD)
-	})
-
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	t.Chdir(tempDir)
 
 	// Create config with hard link file entries
 	config := &Config{
@@ -299,7 +289,7 @@ func TestSwitchDirectoryHardToSym(t *testing.T) {
 	}
 
 	// Verify config has single directory entry
-	config, err = loadConfig()
+	config, err := loadConfig()
 	if err != nil {
 		t.Fatalf("failed to reload config: %v", err)
 	}

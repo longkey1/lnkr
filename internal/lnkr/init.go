@@ -11,8 +11,8 @@ import (
 )
 
 // Init performs the initialization tasks
-func Init(remote string, gitExcludePath string) error {
-	if err := createLnkTomlWithRemote(remote, gitExcludePath); err != nil {
+func Init(remote string, gitExcludePath string, force bool) error {
+	if err := createLnkTomlWithRemote(remote, gitExcludePath, force); err != nil {
 		return fmt.Errorf("failed to create %s: %w", ConfigFileName, err)
 	}
 
@@ -54,12 +54,12 @@ func setupConfigSymlink(config *Config) error {
 		if target, err := os.Readlink(localPath); err == nil && target == remotePath {
 			return nil // Already correctly configured
 		}
-		os.Remove(localPath)
+		_ = os.Remove(localPath)
 	}
 
 	// If remote already exists, just create symlink
 	if _, err := os.Stat(remotePath); err == nil {
-		os.Remove(localPath)
+		_ = os.Remove(localPath)
 	} else if os.IsNotExist(err) {
 		// Move local to remote
 		if err := os.Rename(localPath, remotePath); err != nil {
@@ -75,7 +75,7 @@ func setupConfigSymlink(config *Config) error {
 }
 
 // createLnkTomlWithRemote creates the .lnkr.toml file with remote if it doesn't exist
-func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
+func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) error {
 	filename := ConfigFileName
 
 	// Get current directory as absolute path for local
@@ -107,6 +107,27 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		}
 	}
 
+	// If the config file is a symlink pointing at a different remote,
+	// replace it with a regular file so the new settings are written
+	// locally; setupConfigSymlink then moves it to the new remote.
+	if fi, err := os.Lstat(filename); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		target, readErr := os.Readlink(filename)
+		if readErr != nil || (remote != "" && target != filepath.Join(remote, ConfigFileName)) {
+			content, contentErr := os.ReadFile(filename)
+			if contentErr != nil && !os.IsNotExist(contentErr) {
+				return fmt.Errorf("failed to read %s: %w", filename, contentErr)
+			}
+			if err := os.Remove(filename); err != nil {
+				return fmt.Errorf("failed to replace %s symlink: %w", filename, err)
+			}
+			if contentErr == nil {
+				if err := os.WriteFile(filename, content, 0644); err != nil {
+					return fmt.Errorf("failed to rewrite %s: %w", filename, err)
+				}
+			}
+		}
+	}
+
 	// Create .lnkr.toml file if it doesn't exist
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		// Create new configuration using struct to maintain field order
@@ -123,17 +144,22 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create configuration file: %w", err)
 		}
-		defer file.Close()
 
 		encoder := toml.NewEncoder(file)
 		if err := encoder.Encode(cfg); err != nil {
+			_ = file.Close()
 			return fmt.Errorf("failed to encode configuration: %w", err)
 		}
 
 		// Add commented link entry for .lnkr.toml
 		configLinkComment := "\n# .lnkr.toml is automatically managed as a symbolic link to remote\n# [[links]]\n# path = \".lnkr.toml\"\n# type = \"sym\"\n"
 		if _, err := file.WriteString(configLinkComment); err != nil {
+			_ = file.Close()
 			return fmt.Errorf("failed to write config link comment: %w", err)
+		}
+
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close configuration file: %w", err)
 		}
 
 		fmt.Printf("Created %s with local and remote directories\n", filename)
@@ -151,9 +177,17 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 			}
 		}
 
-		// Always update local and remote (use ContractPath for portability)
-		cfg.Local = ContractPath(currentDir)
-		cfg.Remote = ContractPath(remote)
+		// Refuse to change existing local/remote settings unless forced,
+		// so a stray re-init cannot silently break existing links.
+		newLocal := ContractPath(currentDir)
+		newRemote := ContractPath(remote)
+		if !force {
+			if (cfg.Local != "" && cfg.Local != newLocal) || (cfg.Remote != "" && cfg.Remote != newRemote) {
+				return fmt.Errorf("%s already exists with different settings (local: %q, remote: %q); use --force to overwrite", filename, cfg.Local, cfg.Remote)
+			}
+		}
+		cfg.Local = newLocal
+		cfg.Remote = newRemote
 
 		// Set defaults if not present
 		if strings.TrimSpace(cfg.LinkType) == "" {
@@ -167,11 +201,15 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create configuration file: %w", err)
 		}
-		defer file.Close()
 
 		encoder := toml.NewEncoder(file)
 		if err := encoder.Encode(cfg); err != nil {
+			_ = file.Close()
 			return fmt.Errorf("failed to encode configuration: %w", err)
+		}
+
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close configuration file: %w", err)
 		}
 
 		fmt.Printf("Updated local and remote in %s\n", filename)
@@ -180,13 +218,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string) error {
 }
 
 // addMultipleToGitExclude adds multiple entries to .git/info/exclude with section markers
-func addMultipleToGitExclude(entries []string) error {
-	// Load config to get git exclude path
-	config, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
+func addMultipleToGitExclude(config *Config, entries []string) error {
 	excludePath := config.GetGitExcludePath()
 	excludeDir := filepath.Dir(excludePath)
 
@@ -203,20 +235,7 @@ func addMultipleToGitExclude(entries []string) error {
 
 	// Check if section already exists
 	lines := strings.Split(string(content), "\n")
-	sectionStart := -1
-	sectionEnd := -1
-	sectionMarker := GitExcludeSectionStart
-	endMarker := GitExcludeSectionEnd
-
-	for i, line := range lines {
-		if strings.TrimSpace(line) == sectionMarker {
-			sectionStart = i
-		}
-		if sectionStart != -1 && strings.TrimSpace(line) == endMarker {
-			sectionEnd = i
-			break
-		}
-	}
+	sectionStart, sectionEnd := findGitExcludeSection(lines)
 
 	// Collect existing entries from the section
 	existingEntries := make(map[string]struct{})
@@ -260,14 +279,7 @@ func addMultipleToGitExclude(entries []string) error {
 	lines = append(lines, GitExcludeSectionEnd)
 
 	// Write back to file
-	file, err := os.Create(excludePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(strings.Join(lines, "\n"))
-	if err != nil {
+	if err := os.WriteFile(excludePath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
 		return err
 	}
 

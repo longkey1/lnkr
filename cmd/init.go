@@ -63,7 +63,9 @@ This command will:
 			gitExcludePath = lnkr.GetGlobalGitExcludePath()
 		}
 
-		return lnkr.Init(remoteDir, gitExcludePath)
+		force, _ := cmd.Flags().GetBool("force")
+
+		return lnkr.Init(remoteDir, gitExcludePath, force)
 	},
 }
 
@@ -71,4 +73,5 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringP("remote", "r", "", "Remote directory to save in .lnkr.toml (if not specified, uses remote_root + relative path from local_root)")
 	initCmd.Flags().String("git-exclude-path", "", "Custom path for git exclude file (default: .git/info/exclude)")
+	initCmd.Flags().BoolP("force", "f", false, "Overwrite existing local/remote settings in .lnkr.toml")
 }

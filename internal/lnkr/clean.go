@@ -1,33 +1,75 @@
 package lnkr
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
-// Clean performs the cleanup tasks
-func Clean() error {
-	// Remove .lnkr.toml file if it exists
-	if err := removeLnkToml(); err != nil {
-		return fmt.Errorf("failed to remove %s: %w", ConfigFileName, err)
+// Clean removes the configuration file and its git exclude entries.
+// It does not touch the links themselves; run 'lnkr unlink' first.
+func Clean(dryRun, assumeYes bool) error {
+	config, err := loadConfig()
+	configExists := true
+	if err != nil {
+		if !errors.Is(err, ErrConfigNotFound) {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+		configExists = false
+		config = &Config{}
+	}
+	excludePath := config.GetGitExcludePath()
+	configPath := ConfigFileName
+	if config.dir != "" {
+		configPath = filepath.Join(config.dir, ConfigFileName)
 	}
 
-	// Remove .lnkr.toml from .git/info/exclude
-	if err := removeFromGitExclude(); err != nil {
-		return fmt.Errorf("failed to remove from %s: %w", GitExcludePath, err)
+	if dryRun {
+		if configExists {
+			if len(config.Links) > 0 {
+				fmt.Printf("Warning: %d link(s) are still registered in %s\n", len(config.Links), configPath)
+			}
+			fmt.Printf("Would remove %s\n", configPath)
+		}
+		fmt.Printf("Would remove LNKR entries from %s\n", excludePath)
+		return nil
+	}
+
+	if configExists {
+		if len(config.Links) > 0 {
+			fmt.Printf("Warning: %d link(s) are still registered in %s; run 'lnkr unlink' first to remove the links themselves\n", len(config.Links), configPath)
+		}
+		if !assumeYes && !confirm(fmt.Sprintf("Remove %s and its entries in %s?", configPath, excludePath)) {
+			fmt.Println("Aborted.")
+			return nil
+		}
+	}
+
+	// Remove .lnkr.toml file if it exists
+	if err := removeLnkToml(configPath); err != nil {
+		return fmt.Errorf("failed to remove %s: %w", configPath, err)
+	}
+
+	// Remove the LNKR section, and any plain entry left by old versions
+	if removed, err := removeGitExcludeSection(excludePath); err != nil {
+		return fmt.Errorf("failed to remove LNKR section from %s: %w", excludePath, err)
+	} else if removed {
+		fmt.Printf("Removed LNKR section from %s\n", excludePath)
+	}
+	if err := removeFromGitExcludeWithPath(excludePath, ConfigFileName); err != nil {
+		return fmt.Errorf("failed to remove from %s: %w", excludePath, err)
 	}
 
 	fmt.Println("Cleanup completed successfully!")
 	return nil
 }
 
-// removeLnkToml removes the .lnkr.toml file if it exists
-func removeLnkToml() error {
-	filename := ConfigFileName
-
-	// Check if file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
+// removeLnkToml removes the configuration file if it exists
+func removeLnkToml(filename string) error {
+	// Check if file exists (Lstat so a broken symlink is still removed)
+	if _, err := os.Lstat(filename); os.IsNotExist(err) {
 		fmt.Printf("%s does not exist\n", filename)
 		return nil
 	}
@@ -41,19 +83,7 @@ func removeLnkToml() error {
 	return nil
 }
 
-// removeFromGitExclude removes .lnkr.toml from .git/info/exclude
-func removeFromGitExclude() error {
-	// Load config to get git exclude path
-	config, err := loadConfig()
-	if err != nil {
-		// If config doesn't exist, use default path
-		return removeFromGitExcludeWithPath(GitExcludePath, ConfigFileName)
-	}
-
-	return removeFromGitExcludeWithPath(config.GetGitExcludePath(), ConfigFileName)
-}
-
-// removeFromGitExcludeWithPath removes entries from a specific git exclude file
+// removeFromGitExcludeWithPath removes plain (non-section) entries from a git exclude file
 func removeFromGitExcludeWithPath(excludePath, entry string) error {
 	// Check if exclude file exists
 	if _, err := os.Stat(excludePath); os.IsNotExist(err) {

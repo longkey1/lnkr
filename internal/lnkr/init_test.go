@@ -26,7 +26,7 @@ func TestInitWithRemote(t *testing.T) {
 		t.Fatalf("git init failed: %v\n%s", err, out)
 	}
 
-	if err := Init(remoteDir, GitExcludePath); err != nil {
+	if err := Init(remoteDir, GitExcludePath, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -81,7 +81,7 @@ func TestInitWithRemote(t *testing.T) {
 	}
 
 	// A second init must be idempotent and keep the symlink in place.
-	if err := Init(remoteDir, GitExcludePath); err != nil {
+	if err := Init(remoteDir, GitExcludePath, false); err != nil {
 		t.Fatalf("unexpected error on re-init: %v", err)
 	}
 	fi, err = os.Lstat(ConfigFileName)
@@ -96,7 +96,7 @@ func TestInitWithRemote(t *testing.T) {
 func TestInitWithoutRemote(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	if err := Init("", GitExcludePath); err != nil {
+	if err := Init("", GitExcludePath, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -123,6 +123,53 @@ func TestInitWithoutRemote(t *testing.T) {
 	}
 }
 
+func TestInitExistingConfigRequiresForce(t *testing.T) {
+	tempDir := t.TempDir()
+	remoteA := filepath.Join(tempDir, "remote-a")
+	remoteB := filepath.Join(tempDir, "remote-b")
+	projectDir := filepath.Join(tempDir, "project")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatalf("failed to create project dir: %v", err)
+	}
+	t.Chdir(projectDir)
+
+	if err := Init(remoteA, GitExcludePath, false); err != nil {
+		t.Fatalf("unexpected error on first init: %v", err)
+	}
+
+	// Re-init with a different remote must fail without --force.
+	if err := Init(remoteB, GitExcludePath, false); err == nil {
+		t.Fatalf("expected error on re-init with different remote, but got none")
+	}
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	remoteExpanded, err := config.GetRemoteExpanded()
+	if err != nil {
+		t.Fatalf("failed to expand remote path: %v", err)
+	}
+	if remoteExpanded != remoteA {
+		t.Fatalf("remote was changed without force: got %q, want %q", remoteExpanded, remoteA)
+	}
+
+	// With force, the remote must be updated.
+	if err := Init(remoteB, GitExcludePath, true); err != nil {
+		t.Fatalf("unexpected error on forced re-init: %v", err)
+	}
+	config, err = loadConfig()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	remoteExpanded, err = config.GetRemoteExpanded()
+	if err != nil {
+		t.Fatalf("failed to expand remote path: %v", err)
+	}
+	if remoteExpanded != remoteB {
+		t.Fatalf("remote was not updated with force: got %q, want %q", remoteExpanded, remoteB)
+	}
+}
+
 func TestInitRemotePathIsFile(t *testing.T) {
 	tempDir := t.TempDir()
 	remotePath := filepath.Join(tempDir, "remote")
@@ -136,7 +183,7 @@ func TestInitRemotePathIsFile(t *testing.T) {
 	}
 	t.Chdir(projectDir)
 
-	if err := Init(remotePath, GitExcludePath); err == nil {
+	if err := Init(remotePath, GitExcludePath, false); err == nil {
 		t.Fatalf("expected error when remote path is a file, but got none")
 	}
 }
@@ -168,6 +215,14 @@ func TestAddMultipleToGitExclude(t *testing.T) {
 			entries:         []string{"a.txt", "/a.txt"},
 			wantEntries:     []string{"/a.txt"},
 		},
+		{
+			name: "MergesLegacyMarkerSection",
+			existingContent: "node_modules\n" +
+				legacyGitExcludeSectionStart + "\n/old.txt\n" + GitExcludeSectionEnd + "\n",
+			entries:      []string{"new.txt"},
+			wantEntries:  []string{"/new.txt", "/old.txt"},
+			wantContains: []string{"node_modules", GitExcludeSectionStart},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -183,7 +238,7 @@ func TestAddMultipleToGitExclude(t *testing.T) {
 				}
 			}
 
-			if err := addMultipleToGitExclude(tc.entries); err != nil {
+			if err := addMultipleToGitExclude(&Config{}, tc.entries); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 

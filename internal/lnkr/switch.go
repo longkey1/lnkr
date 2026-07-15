@@ -21,11 +21,6 @@ func Switch(path string, newType string) error {
 		return fmt.Errorf("invalid link type: %s. Must be '%s' or '%s'", newType, LinkTypeSymbolic, LinkTypeHard)
 	}
 
-	// Check if path is absolute
-	if filepath.IsAbs(path) {
-		return fmt.Errorf("absolute path is not allowed: %s. Please use relative path", path)
-	}
-
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -45,8 +40,15 @@ func Switch(path string, newType string) error {
 		return fmt.Errorf("failed to expand remote path: %w", err)
 	}
 
+	// Normalize the input path (trailing slash, "./" prefix, CWD-relative)
+	if resolved, err := resolveLocalRelPath(path, localDir); err == nil {
+		path = resolved
+	} else {
+		path = filepath.Clean(path)
+	}
+
 	// Find the entry (exact match or prefix match for hard-linked directories)
-	var targetIndex int = -1
+	targetIndex := -1
 	var isHardLinkedDir bool
 	for i, link := range config.Links {
 		if link.Path == path {
@@ -189,14 +191,14 @@ func switchDirectory(config *Config, targetIndex int, path, localDir, remoteDir,
 		var remainingLinks []Link
 		for _, link := range config.Links {
 			if link.Path == path || strings.HasPrefix(link.Path, pathPrefix) {
-				os.Remove(filepath.Join(localDir, link.Path))
+				_ = os.Remove(filepath.Join(localDir, link.Path))
 			} else {
 				remainingLinks = append(remainingLinks, link)
 			}
 		}
 
 		// Remove local directory tree and create symbolic link
-		os.RemoveAll(localPath)
+		_ = os.RemoveAll(localPath)
 		if err := createLink(remotePath, localPath, LinkTypeSymbolic); err != nil {
 			return fmt.Errorf("failed to create symbolic link: %w", err)
 		}

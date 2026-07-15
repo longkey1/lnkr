@@ -66,11 +66,8 @@ func createLinkEntry(link Link, config *Config) error {
 	if os.IsNotExist(err) {
 		return fmt.Errorf("source path does not exist: %s", sourceAbs)
 	}
-
-	// Check if target already exists
-	if _, err := os.Stat(targetAbs); err == nil {
-		fmt.Printf("Warning: target already exists: %s\n", targetAbs)
-		return nil // Skip this link instead of returning error
+	if err != nil {
+		return fmt.Errorf("failed to stat source path: %w", err)
 	}
 
 	// Create parent directory if needed
@@ -86,21 +83,50 @@ func createLinkEntry(link Link, config *Config) error {
 			if err := createHardLinksRecursively(sourceAbs, targetAbs); err != nil {
 				return fmt.Errorf("failed to create hard links for directory: %w", err)
 			}
-		} else {
-			if err := os.Link(sourceAbs, targetAbs); err != nil {
-				return fmt.Errorf("failed to create hard link: %w", err)
-			}
-			fmt.Printf("Created hard link: %s -> %s\n", targetAbs, sourceAbs)
+			return nil
 		}
+		return createHardLinkIdempotent(sourceAbs, sourceInfo, targetAbs)
 	case LinkTypeSymbolic:
-		if err := os.Symlink(sourceAbs, targetAbs); err != nil {
-			return fmt.Errorf("failed to create symbolic link: %w", err)
-		}
-		fmt.Printf("Created symbolic link: %s -> %s\n", targetAbs, sourceAbs)
+		return createSymlinkIdempotent(sourceAbs, targetAbs)
 	default:
 		return fmt.Errorf("unknown link type: %s", link.Type)
 	}
+}
 
+// createSymlinkIdempotent creates a symbolic link, treating an existing link
+// that already points to the source as success. An existing target that is
+// anything else is an error so conflicting local files are never masked.
+func createSymlinkIdempotent(sourceAbs, targetAbs string) error {
+	if fi, err := os.Lstat(targetAbs); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if target, err := os.Readlink(targetAbs); err == nil && target == sourceAbs {
+				fmt.Printf("Already linked: %s\n", targetAbs)
+				return nil
+			}
+		}
+		return fmt.Errorf("target already exists and is not a link to %s: %s", sourceAbs, targetAbs)
+	}
+	if err := os.Symlink(sourceAbs, targetAbs); err != nil {
+		return fmt.Errorf("failed to create symbolic link: %w", err)
+	}
+	fmt.Printf("Created symbolic link: %s -> %s\n", targetAbs, sourceAbs)
+	return nil
+}
+
+// createHardLinkIdempotent creates a hard link, treating an existing target
+// that already shares the source's inode as success.
+func createHardLinkIdempotent(sourceAbs string, sourceInfo os.FileInfo, targetAbs string) error {
+	if fi, err := os.Lstat(targetAbs); err == nil {
+		if os.SameFile(fi, sourceInfo) {
+			fmt.Printf("Already linked: %s\n", targetAbs)
+			return nil
+		}
+		return fmt.Errorf("target already exists and is not a hard link to %s: %s", sourceAbs, targetAbs)
+	}
+	if err := os.Link(sourceAbs, targetAbs); err != nil {
+		return fmt.Errorf("failed to create hard link: %w", err)
+	}
+	fmt.Printf("Created hard link: %s -> %s\n", targetAbs, sourceAbs)
 	return nil
 }
 
@@ -128,10 +154,12 @@ func createHardLinksRecursively(sourceDir, targetDir string) error {
 			return nil
 		}
 
-		// Check if target file already exists
-		if _, err := os.Stat(targetPath); err == nil {
-			fmt.Printf("Warning: target already exists: %s\n", targetPath)
-			return nil
+		// Skip files that are already hard linked; a conflicting file is an error
+		if fi, err := os.Lstat(targetPath); err == nil {
+			if os.SameFile(fi, info) {
+				return nil
+			}
+			return fmt.Errorf("target already exists and is not a hard link to %s: %s", path, targetPath)
 		}
 
 		// Create hard link for file
@@ -154,10 +182,9 @@ func createHardLinksRecursively(sourceDir, targetDir string) error {
 
 // applyAllLinksToGitExclude removes existing LNKR section and applies all configured link paths to GitExclude
 func applyAllLinksToGitExclude(config *Config) error {
-	// First remove existing LNKR section
-	if err := removeAllLinksFromGitExclude(config); err != nil {
-		// Continue even if removal fails (section might not exist)
-	}
+	// First remove the existing LNKR section so stale entries do not linger.
+	// Continue even if removal fails (section might not exist).
+	_, _ = removeGitExcludeSection(config.GetGitExcludePath())
 
 	// Always include .lnkr.toml in the exclude list
 	linkPaths := []string{ConfigFileName}
@@ -165,5 +192,5 @@ func applyAllLinksToGitExclude(config *Config) error {
 		linkPaths = append(linkPaths, link.Path)
 	}
 
-	return addMultipleToGitExclude(linkPaths)
+	return addMultipleToGitExclude(config, linkPaths)
 }

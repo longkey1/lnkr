@@ -112,15 +112,16 @@ func TestCreateLinksNoLinks(t *testing.T) {
 	}
 }
 
-func TestCreateLinksSkipsExistingTarget(t *testing.T) {
+func TestCreateLinksFailsOnConflictingTarget(t *testing.T) {
 	localDir, remoteDir := setupProject(t, &Config{
 		Links: []Link{{Path: "a.txt", Type: LinkTypeSymbolic}},
 	})
 	writeFiles(t, remoteDir, map[string]string{"a.txt": "remote"})
 	writeFiles(t, localDir, map[string]string{"a.txt": "local"})
 
-	if err := CreateLinks(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// A local file that is not a link to remote must be reported as an error.
+	if err := CreateLinks(); err == nil {
+		t.Fatalf("expected error for conflicting target, but got none")
 	}
 
 	// The existing local file must be left untouched (not replaced by a link).
@@ -137,5 +138,55 @@ func TestCreateLinksSkipsExistingTarget(t *testing.T) {
 	}
 	if string(content) != "local" {
 		t.Fatalf("existing target content changed: got %q, want %q", content, "local")
+	}
+}
+
+func TestCreateLinksIdempotent(t *testing.T) {
+	testCases := []struct {
+		name        string
+		remoteFiles map[string]string
+		links       []Link
+		wantLinked  []Link
+	}{
+		{
+			name:        "SymbolicFile",
+			remoteFiles: map[string]string{"a.txt": "a"},
+			links:       []Link{{Path: "a.txt", Type: LinkTypeSymbolic}},
+			wantLinked:  []Link{{Path: "a.txt", Type: LinkTypeSymbolic}},
+		},
+		{
+			name:        "HardFile",
+			remoteFiles: map[string]string{"a.txt": "a"},
+			links:       []Link{{Path: "a.txt", Type: LinkTypeHard}},
+			wantLinked:  []Link{{Path: "a.txt", Type: LinkTypeHard}},
+		},
+		{
+			name:        "HardDirectory",
+			remoteFiles: map[string]string{"conf/a.txt": "a", "conf/b.txt": "b"},
+			links:       []Link{{Path: "conf", Type: LinkTypeHard}},
+			wantLinked: []Link{
+				{Path: "conf/a.txt", Type: LinkTypeHard},
+				{Path: "conf/b.txt", Type: LinkTypeHard},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			localDir, remoteDir := setupProject(t, &Config{Links: tc.links})
+			writeFiles(t, remoteDir, tc.remoteFiles)
+
+			// Running twice must succeed with all links intact.
+			if err := CreateLinks(); err != nil {
+				t.Fatalf("unexpected error on first run: %v", err)
+			}
+			if err := CreateLinks(); err != nil {
+				t.Fatalf("unexpected error on second run: %v", err)
+			}
+
+			for _, link := range tc.wantLinked {
+				assertLink(t, filepath.Join(localDir, link.Path), filepath.Join(remoteDir, link.Path), link.Type)
+			}
+		})
 	}
 }

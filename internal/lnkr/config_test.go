@@ -1,6 +1,7 @@
 package lnkr
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -203,14 +204,11 @@ func TestSaveAndLoadConfigRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLoadConfigMissingFileReturnsEmptyConfig(t *testing.T) {
+func TestLoadConfigMissingFileReturnsError(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	cfg, err := loadConfig()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.Local != "" || cfg.Remote != "" || len(cfg.Links) != 0 {
-		t.Fatalf("expected empty config, got %+v", cfg)
+	_, err := loadConfig()
+	if !errors.Is(err, ErrConfigNotFound) {
+		t.Fatalf("expected ErrConfigNotFound, got %v", err)
 	}
 }

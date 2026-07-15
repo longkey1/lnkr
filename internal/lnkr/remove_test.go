@@ -58,6 +58,22 @@ func TestRemove(t *testing.T) {
 			wantRestored: []string{"conf/a.txt", "conf/b.txt"},
 		},
 		{
+			name:         "TrailingSlashNormalized",
+			remoteFiles:  map[string]string{"conf/a.txt": "a"},
+			links:        []Link{{Path: "conf/a.txt", Type: LinkTypeHard}},
+			makeLinks:    true,
+			removePath:   "conf/",
+			wantRestored: []string{"conf/a.txt"},
+		},
+		{
+			name:         "DotSlashPrefixNormalized",
+			remoteFiles:  map[string]string{"a.txt": "content"},
+			links:        []Link{{Path: "a.txt", Type: LinkTypeSymbolic}},
+			makeLinks:    true,
+			removePath:   "./a.txt",
+			wantRestored: []string{"a.txt"},
+		},
+		{
 			name: "PrefixDoesNotMatchSibling",
 			remoteFiles: map[string]string{
 				"conf/a.txt": "a",
@@ -115,7 +131,7 @@ func TestRemove(t *testing.T) {
 				}
 			}
 
-			err := Remove(tc.removePath)
+			err := Remove(tc.removePath, false)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error but got none")
@@ -172,7 +188,7 @@ func TestRemoveCleansEmptyRemoteDirs(t *testing.T) {
 		t.Fatalf("failed to create link: %v", err)
 	}
 
-	if err := Remove("sub/dir/a.txt"); err != nil {
+	if err := Remove("sub/dir/a.txt", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

@@ -9,7 +9,7 @@ import (
 
 // Add adds a local file/directory to the configuration after moving it to the remote directory.
 // It then creates a link from the remote location back to the local location.
-func Add(path string, recursive bool, linkType string) error {
+func Add(path string, recursive bool, linkType string, dryRun bool) error {
 	// Normalize "symbolic" to "sym" for backward compatibility
 	if linkType == "symbolic" {
 		linkType = LinkTypeSymbolic
@@ -19,21 +19,16 @@ func Add(path string, recursive bool, linkType string) error {
 		return fmt.Errorf("invalid link type: %s. Must be '%s' or '%s'", linkType, LinkTypeHard, LinkTypeSymbolic)
 	}
 
-	// Check if path is absolute
-	if filepath.IsAbs(path) {
-		return fmt.Errorf("absolute path is not allowed: %s. Please use relative path", path)
-	}
-
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	if config.Local == "" {
-		return fmt.Errorf("local directory not configured. Run 'lnkr init --local <path>' first")
+		return fmt.Errorf("local directory is not set in %s; run 'lnkr init' to configure it", ConfigFileName)
 	}
 	if config.Remote == "" {
-		return fmt.Errorf("remote directory not configured. Run 'lnkr init --remote <path>' first")
+		return fmt.Errorf("remote directory is not set in %s; run 'lnkr init --remote <path>' to configure it", ConfigFileName)
 	}
 
 	// Expand paths with environment variables
@@ -46,8 +41,15 @@ func Add(path string, recursive bool, linkType string) error {
 		return fmt.Errorf("failed to expand remote path: %w", err)
 	}
 
+	// Resolve the input path (absolute or relative to the current directory)
+	// to a path relative to the local directory
+	relPath, err := resolveLocalRelPath(path, localDir)
+	if err != nil {
+		return err
+	}
+
 	// Build absolute path for the local file
-	localAbs := filepath.Join(localDir, path)
+	localAbs := filepath.Join(localDir, relPath)
 	fi, err := os.Stat(localAbs)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("path does not exist: %s", localAbs)
@@ -103,6 +105,15 @@ func Add(path string, recursive bool, linkType string) error {
 
 	if len(targets) == 0 {
 		fmt.Println("No new paths to add.")
+		return nil
+	}
+
+	if dryRun {
+		for _, t := range targets {
+			fmt.Printf("Would move: %s -> %s\n", filepath.Join(localDir, t), filepath.Join(remoteDir, t))
+			fmt.Printf("Would add link: %s (type: %s)\n", t, linkType)
+		}
+		fmt.Printf("Dry run: %d path(s) would be added.\n", len(targets))
 		return nil
 	}
 

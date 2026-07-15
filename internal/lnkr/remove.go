@@ -10,7 +10,7 @@ import (
 
 // Remove removes a link from the configuration and restores the file from remote to local.
 // This is the reverse operation of Add.
-func Remove(path string) error {
+func Remove(path string, dryRun bool) error {
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -26,6 +26,13 @@ func Remove(path string) error {
 		return fmt.Errorf("failed to expand remote path: %w", err)
 	}
 
+	// Normalize the input path (trailing slash, "./" prefix, CWD-relative)
+	if resolved, err := resolveLocalRelPath(path, localDir); err == nil {
+		path = resolved
+	} else {
+		path = filepath.Clean(path)
+	}
+
 	// Find matching links
 	var linksToRemove []Link
 	var newLinks []Link
@@ -39,6 +46,14 @@ func Remove(path string) error {
 
 	if len(linksToRemove) == 0 {
 		fmt.Println("No matching links found to remove.")
+		return nil
+	}
+
+	if dryRun {
+		for _, link := range linksToRemove {
+			fmt.Printf("Would restore: %s -> %s\n", filepath.Join(remoteDir, link.Path), filepath.Join(localDir, link.Path))
+		}
+		fmt.Printf("Dry run: %d link(s) would be removed.\n", len(linksToRemove))
 		return nil
 	}
 

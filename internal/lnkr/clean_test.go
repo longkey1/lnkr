@@ -29,6 +29,20 @@ func TestClean(t *testing.T) {
 			createConfig: true,
 		},
 		{
+			name:         "RemovesLnkrSection",
+			createConfig: true,
+			excludeContent: "node_modules\n" +
+				GitExcludeSectionStart + "\n/.lnkr.toml\n/a.txt\n" + GitExcludeSectionEnd + "\nvendor",
+			wantExclude: "node_modules\nvendor",
+		},
+		{
+			name:         "RemovesLegacyMarkerSection",
+			createConfig: true,
+			excludeContent: "node_modules\n" +
+				legacyGitExcludeSectionStart + "\n/.lnkr.toml\n" + GitExcludeSectionEnd + "\nvendor",
+			wantExclude: "node_modules\nvendor",
+		},
+		{
 			name:           "EntryNotInExclude",
 			createConfig:   true,
 			excludeContent: "node_modules\n",
@@ -56,7 +70,7 @@ func TestClean(t *testing.T) {
 				}
 			}
 
-			if err := Clean(); err != nil {
+			if err := Clean(false, true); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 

@@ -10,28 +10,10 @@ func TestExpandPath(t *testing.T) {
 	// Initialize viper for global config
 	InitGlobalConfig()
 
-	// Save and restore environment variables
-	origHome := os.Getenv("HOME")
-	origRemoteRoot := os.Getenv("LNKR_REMOTE_ROOT")
-	origLocalRoot := os.Getenv("LNKR_LOCAL_ROOT")
-	defer func() {
-		os.Setenv("HOME", origHome)
-		if origRemoteRoot != "" {
-			os.Setenv("LNKR_REMOTE_ROOT", origRemoteRoot)
-		} else {
-			os.Unsetenv("LNKR_REMOTE_ROOT")
-		}
-		if origLocalRoot != "" {
-			os.Setenv("LNKR_LOCAL_ROOT", origLocalRoot)
-		} else {
-			os.Unsetenv("LNKR_LOCAL_ROOT")
-		}
-	}()
-
-	// Set test environment variables
-	os.Setenv("HOME", "/home/testuser")
-	os.Setenv("LNKR_REMOTE_ROOT", "/remote/root")
-	os.Setenv("LNKR_LOCAL_ROOT", "/local/root")
+	// Set test environment variables (restored automatically by t.Setenv)
+	t.Setenv("HOME", "/home/testuser")
+	t.Setenv("LNKR_REMOTE_ROOT", "/remote/root")
+	t.Setenv("LNKR_LOCAL_ROOT", "/local/root")
 
 	tests := []struct {
 		name    string
@@ -103,14 +85,12 @@ func TestExpandPath(t *testing.T) {
 }
 
 func TestExpandPath_UndefinedVariable(t *testing.T) {
-	// Unset variable for test
-	origValue := os.Getenv("UNDEFINED_VAR")
-	os.Unsetenv("UNDEFINED_VAR")
-	defer func() {
-		if origValue != "" {
-			os.Setenv("UNDEFINED_VAR", origValue)
-		}
-	}()
+	// Register the variable with t.Setenv so it is restored automatically,
+	// then unset it for the test.
+	t.Setenv("UNDEFINED_VAR", "")
+	if err := os.Unsetenv("UNDEFINED_VAR"); err != nil {
+		t.Fatalf("failed to unset UNDEFINED_VAR: %v", err)
+	}
 
 	_, err := ExpandPath("$UNDEFINED_VAR/path")
 	if err == nil {
@@ -140,21 +120,9 @@ func TestContractPath(t *testing.T) {
 	// Initialize viper for global config
 	InitGlobalConfig()
 
-	// Save and restore environment variables
-	origHome := os.Getenv("HOME")
-	origRemoteRoot := os.Getenv("LNKR_REMOTE_ROOT")
-	defer func() {
-		os.Setenv("HOME", origHome)
-		if origRemoteRoot != "" {
-			os.Setenv("LNKR_REMOTE_ROOT", origRemoteRoot)
-		} else {
-			os.Unsetenv("LNKR_REMOTE_ROOT")
-		}
-	}()
-
-	// Set test environment variables
-	os.Setenv("HOME", "/home/testuser")
-	os.Setenv("LNKR_REMOTE_ROOT", "/home/testuser/.config/lnkr")
+	// Set test environment variables (restored automatically by t.Setenv)
+	t.Setenv("HOME", "/home/testuser")
+	t.Setenv("LNKR_REMOTE_ROOT", "/home/testuser/.config/lnkr")
 
 	tests := []struct {
 		name string
