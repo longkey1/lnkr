@@ -271,3 +271,7 @@ For backward compatibility, `symbolic` is also accepted as an alias for `sym`.
 - macOS (AMD64, ARM64)
 
 Windows is not supported due to filesystem differences.
+
+## License
+
+MIT
