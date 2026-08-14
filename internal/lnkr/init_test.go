@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 func TestInitWithRemote(t *testing.T) {
@@ -50,7 +52,8 @@ func TestInitWithRemote(t *testing.T) {
 		t.Fatalf("remote config file missing: %v", err)
 	}
 
-	// The stored paths must expand back to the project and remote directories.
+	// The config directory must be the project directory and the stored
+	// remote path must expand back to the remote directory.
 	config, err := loadConfig()
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
@@ -59,12 +62,8 @@ func TestInitWithRemote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	localExpanded, err := config.GetLocalExpanded()
-	if err != nil {
-		t.Fatalf("failed to expand local path: %v", err)
-	}
-	if localExpanded != cwd {
-		t.Fatalf("unexpected local path: got %q, want %q", localExpanded, cwd)
+	if config.LocalDir() != cwd {
+		t.Fatalf("unexpected local dir: got %q, want %q", config.LocalDir(), cwd)
 	}
 	remoteExpanded, err := config.GetRemoteExpanded()
 	if err != nil {
@@ -72,6 +71,15 @@ func TestInitWithRemote(t *testing.T) {
 	}
 	if remoteExpanded != remoteDir {
 		t.Fatalf("unexpected remote path: got %q, want %q", remoteExpanded, remoteDir)
+	}
+
+	// The written config must not contain the deprecated "local" key.
+	var raw map[string]any
+	if _, err := toml.DecodeFile(wantTarget, &raw); err != nil {
+		t.Fatalf("failed to decode remote config: %v", err)
+	}
+	if _, ok := raw["local"]; ok {
+		t.Fatalf("config still contains deprecated local key: %v", raw)
 	}
 
 	// The git exclude file must contain the LNKR section with the config file.

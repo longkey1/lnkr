@@ -25,16 +25,15 @@ func Switch(path string, newType string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-
-	if config.Local == "" || config.Remote == "" {
-		return fmt.Errorf("local or remote directory not configured. Run 'lnkr init' first")
+	if err := config.checkNotInsideRemote(); err != nil {
+		return err
 	}
 
-	// Expand paths with environment variables
-	localDir, err := config.GetLocalExpanded()
-	if err != nil {
-		return fmt.Errorf("failed to expand local path: %w", err)
+	if config.Remote == "" {
+		return fmt.Errorf("remote directory not configured. Run 'lnkr init' first")
 	}
+
+	localDir := config.LocalDir()
 	remoteDir, err := config.GetRemoteExpanded()
 	if err != nil {
 		return fmt.Errorf("failed to expand remote path: %w", err)

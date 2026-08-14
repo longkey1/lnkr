@@ -56,7 +56,7 @@ func TestClean(t *testing.T) {
 			t.Chdir(tempDir)
 
 			if tc.createConfig {
-				if err := saveConfig(&Config{Local: "/tmp/local", Remote: "/tmp/remote"}); err != nil {
+				if err := saveConfig(&Config{Remote: "/tmp/remote"}); err != nil {
 					t.Fatalf("failed to save config: %v", err)
 				}
 			}
@@ -91,6 +91,37 @@ func TestClean(t *testing.T) {
 				t.Fatalf("unexpected exclude content: got %q, want %q", content, tc.wantExclude)
 			}
 		})
+	}
+}
+
+// TestCleanSkipsGitExcludeInWorktree verifies that clean succeeds in a
+// directory whose .git is a regular file (a git worktree) and leaves it
+// untouched.
+func TestCleanSkipsGitExcludeInWorktree(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Chdir(tempDir)
+
+	if err := saveConfig(&Config{Remote: "/tmp/remote"}); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+	gitFile := filepath.Join(tempDir, ".git")
+	if err := os.WriteFile(gitFile, []byte("gitdir: /elsewhere/.git/worktrees/x\n"), 0644); err != nil {
+		t.Fatalf("failed to write .git file: %v", err)
+	}
+
+	if err := Clean(false, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(ConfigFileName); !os.IsNotExist(err) {
+		t.Fatalf("%s still exists after clean", ConfigFileName)
+	}
+	fi, err := os.Lstat(gitFile)
+	if err != nil {
+		t.Fatalf("failed to stat .git: %v", err)
+	}
+	if !fi.Mode().IsRegular() {
+		t.Fatalf("expected .git to remain a regular file, got %v", fi.Mode())
 	}
 }
 

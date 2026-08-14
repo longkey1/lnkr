@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 func TestLoadConfigLinkTypeValidation(t *testing.T) {
@@ -171,7 +173,6 @@ func TestSaveAndLoadConfigRoundTrip(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	want := &Config{
-		Local:          "/tmp/local",
 		Remote:         "/tmp/remote",
 		LinkType:       LinkTypeHard,
 		GitExcludePath: ".git/info/custom",
@@ -190,7 +191,7 @@ func TestSaveAndLoadConfigRoundTrip(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if got.Local != want.Local || got.Remote != want.Remote ||
+	if got.Remote != want.Remote ||
 		got.LinkType != want.LinkType || got.GitExcludePath != want.GitExcludePath {
 		t.Fatalf("unexpected config: got %+v, want %+v", got, want)
 	}
@@ -210,5 +211,105 @@ func TestLoadConfigMissingFileReturnsError(t *testing.T) {
 	_, err := loadConfig()
 	if !errors.Is(err, ErrConfigNotFound) {
 		t.Fatalf("expected ErrConfigNotFound, got %v", err)
+	}
+}
+
+// TestLoadConfigIgnoresDeprecatedLocalKey verifies that old configuration
+// files carrying a "local" key still load, and that the key is dropped on
+// the next save.
+func TestLoadConfigIgnoresDeprecatedLocalKey(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	content := "local = \"/somewhere\"\nremote = \"/tmp/remote\"\n"
+	if err := os.WriteFile(ConfigFileName, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if config.Remote != "/tmp/remote" {
+		t.Fatalf("unexpected remote: %q", config.Remote)
+	}
+
+	if err := saveConfig(config); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+	var raw map[string]any
+	if _, err := toml.DecodeFile(ConfigFileName, &raw); err != nil {
+		t.Fatalf("failed to decode saved config: %v", err)
+	}
+	if _, ok := raw["local"]; ok {
+		t.Fatalf("saved config still contains deprecated local key: %v", raw)
+	}
+}
+
+func TestGitExcludeWorktreeSkip(t *testing.T) {
+	testCases := []struct {
+		name           string
+		gitExcludePath string // empty means default
+		gitIsFile      bool
+		gitIsDir       bool
+		wantSkip       bool
+	}{
+		{
+			name:      "DefaultPathWithGitFile",
+			gitIsFile: true,
+			wantSkip:  true,
+		},
+		{
+			name:     "DefaultPathWithGitDir",
+			gitIsDir: true,
+			wantSkip: false,
+		},
+		{
+			name:     "DefaultPathWithoutGit",
+			wantSkip: false,
+		},
+		{
+			name:           "CustomPathUnderGitWithGitFile",
+			gitExcludePath: ".git/info/custom",
+			gitIsFile:      true,
+			wantSkip:       true,
+		},
+		{
+			name:           "RelativePathOutsideGit",
+			gitExcludePath: "exclude.txt",
+			gitIsFile:      true,
+			wantSkip:       false,
+		},
+		{
+			name:           "AbsolutePath",
+			gitExcludePath: "/tmp/exclude",
+			gitIsFile:      true,
+			wantSkip:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			gitPath := filepath.Join(dir, ".git")
+			if tc.gitIsFile {
+				if err := os.WriteFile(gitPath, []byte("gitdir: /elsewhere\n"), 0644); err != nil {
+					t.Fatalf("failed to write .git file: %v", err)
+				}
+			}
+			if tc.gitIsDir {
+				if err := os.MkdirAll(gitPath, 0755); err != nil {
+					t.Fatalf("failed to create .git dir: %v", err)
+				}
+			}
+
+			cfg := &Config{GitExcludePath: tc.gitExcludePath, dir: dir}
+			gotPath, gotSkip := cfg.gitExcludeWorktreeSkip()
+			if gotSkip != tc.wantSkip {
+				t.Fatalf("gitExcludeWorktreeSkip() skip = %v, want %v", gotSkip, tc.wantSkip)
+			}
+			if gotSkip && gotPath != gitPath {
+				t.Fatalf("gitExcludeWorktreeSkip() path = %q, want %q", gotPath, gitPath)
+			}
+		})
 	}
 }

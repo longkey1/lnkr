@@ -41,7 +41,6 @@ type Link struct {
 }
 
 type Config struct {
-	Local  string `toml:"local"`
 	Remote string `toml:"remote"`
 	// LinkType determines the default link type when adding new links.
 	// Accepts "hard" or "sym" ("symbolic" is accepted as an alias).
@@ -51,8 +50,12 @@ type Config struct {
 	Links          []Link `toml:"links"`
 
 	// dir is the absolute path of the directory containing the loaded
-	// configuration file. Empty for configs not loaded from disk; relative
-	// paths then resolve against the current directory as before.
+	// configuration file. It is the effective local directory: links are
+	// created where the configuration file lives, so the same remote can
+	// serve multiple checkouts (e.g. git worktrees). A "local" key in old
+	// configuration files is ignored on load and dropped on save.
+	// Empty for configs not loaded from disk; relative paths then resolve
+	// against the current directory as before.
 	dir string
 }
 
@@ -196,10 +199,62 @@ func (c *Config) GetGitExcludePath() string {
 	return path
 }
 
-// GetLocalExpanded returns the expanded local path with environment variables resolved.
-// Returns error if any variable in the path is undefined.
-func (c *Config) GetLocalExpanded() (string, error) {
-	return ExpandPath(c.Local)
+// LocalDir returns the effective local directory: the directory containing
+// the loaded configuration file. Empty only for configs not loaded from disk.
+func (c *Config) LocalDir() string {
+	return c.dir
+}
+
+// checkNotInsideRemote rejects running mutating commands inside the remote
+// directory itself. The remote holds the canonical copy of the configuration
+// file, so running there would create self-referential links.
+func (c *Config) checkNotInsideRemote() error {
+	if c.dir == "" || c.Remote == "" {
+		return nil
+	}
+	remoteDir, err := c.GetRemoteExpanded()
+	if err != nil {
+		return nil // the command reports the expansion error itself
+	}
+	resolve := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return filepath.Clean(p)
+	}
+	if resolve(c.dir) == resolve(remoteDir) {
+		return fmt.Errorf("current directory is the remote directory itself (%s); copy or symlink %s into a local directory and run there", remoteDir, ConfigFileName)
+	}
+	return nil
+}
+
+// gitExcludeWorktreeSkip reports whether git exclude updates should be
+// skipped because the effective exclude path points into ".git" and ".git"
+// is a regular file, i.e. a git worktree. Worktrees share the main
+// repository's info/exclude via the common git dir, so no update is needed
+// there. The returned path is the ".git" file, for logging.
+func (c *Config) gitExcludeWorktreeSkip() (string, bool) {
+	raw := c.GitExcludePath
+	if raw == "" {
+		raw = GitExcludePath
+	}
+	if filepath.IsAbs(raw) {
+		return "", false
+	}
+	cleaned := filepath.Clean(raw)
+	if cleaned != ".git" && !strings.HasPrefix(cleaned, ".git"+string(os.PathSeparator)) {
+		return "", false
+	}
+	base := c.dir
+	if base == "" {
+		base = "."
+	}
+	gitPath := filepath.Join(base, ".git")
+	fi, err := os.Lstat(gitPath)
+	if err != nil || !fi.Mode().IsRegular() {
+		return "", false
+	}
+	return gitPath, true
 }
 
 // GetRemoteExpanded returns the expanded remote path with environment variables resolved.

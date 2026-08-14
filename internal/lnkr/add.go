@@ -23,19 +23,15 @@ func Add(path string, recursive bool, linkType string, dryRun bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-
-	if config.Local == "" {
-		return fmt.Errorf("local directory is not set in %s; run 'lnkr init' to configure it", ConfigFileName)
+	if err := config.checkNotInsideRemote(); err != nil {
+		return err
 	}
+
 	if config.Remote == "" {
 		return fmt.Errorf("remote directory is not set in %s; run 'lnkr init --remote <path>' to configure it", ConfigFileName)
 	}
 
-	// Expand paths with environment variables
-	localDir, err := config.GetLocalExpanded()
-	if err != nil {
-		return fmt.Errorf("failed to expand local path: %w", err)
-	}
+	localDir := config.LocalDir()
 	remoteDir, err := config.GetRemoteExpanded()
 	if err != nil {
 		return fmt.Errorf("failed to expand remote path: %w", err)

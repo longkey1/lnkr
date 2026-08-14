@@ -33,7 +33,11 @@ func Clean(dryRun, assumeYes bool) error {
 			}
 			fmt.Printf("Would remove %s\n", configPath)
 		}
-		fmt.Printf("Would remove LNKR entries from %s\n", excludePath)
+		if gitPath, skip := config.gitExcludeWorktreeSkip(); skip {
+			fmt.Printf("Would skip git exclude update: %s is a file (git worktree)\n", gitPath)
+		} else {
+			fmt.Printf("Would remove LNKR entries from %s\n", excludePath)
+		}
 		return nil
 	}
 
@@ -53,13 +57,17 @@ func Clean(dryRun, assumeYes bool) error {
 	}
 
 	// Remove the LNKR section, and any plain entry left by old versions
-	if removed, err := removeGitExcludeSection(excludePath); err != nil {
-		return fmt.Errorf("failed to remove LNKR section from %s: %w", excludePath, err)
-	} else if removed {
-		fmt.Printf("Removed LNKR section from %s\n", excludePath)
-	}
-	if err := removeFromGitExcludeWithPath(excludePath, ConfigFileName); err != nil {
-		return fmt.Errorf("failed to remove from %s: %w", excludePath, err)
+	if gitPath, skip := config.gitExcludeWorktreeSkip(); skip {
+		fmt.Printf("Skipping git exclude update: %s is a file (git worktree)\n", gitPath)
+	} else {
+		if removed, err := removeGitExcludeSection(excludePath); err != nil {
+			return fmt.Errorf("failed to remove LNKR section from %s: %w", excludePath, err)
+		} else if removed {
+			fmt.Printf("Removed LNKR section from %s\n", excludePath)
+		}
+		if err := removeFromGitExcludeWithPath(excludePath, ConfigFileName); err != nil {
+			return fmt.Errorf("failed to remove from %s: %w", excludePath, err)
+		}
 	}
 
 	fmt.Println("Cleanup completed successfully!")

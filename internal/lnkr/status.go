@@ -25,11 +25,8 @@ func Status() error {
 	}
 
 	// Display root paths
-	localRoot := config.Local
+	localRoot := config.LocalDir()
 	remoteRoot := config.Remote
-	if localRoot == "" {
-		localRoot = "(not set)"
-	}
 	if remoteRoot == "" {
 		remoteRoot = "(not set)"
 	}
@@ -43,7 +40,7 @@ func Status() error {
 	}
 
 	// Get expanded paths for display
-	localExpanded, _ := config.GetLocalExpanded()
+	localExpanded := config.LocalDir()
 	remoteExpanded, _ := config.GetRemoteExpanded()
 
 	var statuses []LinkStatus
@@ -123,21 +120,12 @@ func checkLinkStatus(link Link, config *Config) LinkStatus {
 	}
 
 	// Validate config first
-	if config.Local == "" {
-		status.Error = "Local directory not configured"
-		return status
-	}
 	if config.Remote == "" {
 		status.Error = "Remote directory not configured"
 		return status
 	}
 
-	// Expand paths with environment variables
-	localDir, err := config.GetLocalExpanded()
-	if err != nil {
-		status.Error = fmt.Sprintf("Failed to expand local path: %v", err)
-		return status
-	}
+	localDir := config.LocalDir()
 	remoteDir, err := config.GetRemoteExpanded()
 	if err != nil {
 		status.Error = fmt.Sprintf("Failed to expand remote path: %v", err)

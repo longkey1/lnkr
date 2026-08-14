@@ -105,7 +105,6 @@ func TestCheckLinkStatus(t *testing.T) {
 		name            string
 		setup           func(t *testing.T, localDir, remoteDir string)
 		link            Link
-		noLocal         bool // leave config.Local empty
 		noRemote        bool // leave config.Remote empty
 		wantExists      bool
 		wantIsLink      bool
@@ -222,13 +221,6 @@ func TestCheckLinkStatus(t *testing.T) {
 			wantErrContains: "not hard linked",
 		},
 		{
-			name:            "LocalNotConfigured",
-			setup:           func(t *testing.T, localDir, remoteDir string) {},
-			link:            Link{Path: "a.txt", Type: LinkTypeSymbolic},
-			noLocal:         true,
-			wantErrContains: "Local directory not configured",
-		},
-		{
 			name:            "RemoteNotConfigured",
 			setup:           func(t *testing.T, localDir, remoteDir string) {},
 			link:            Link{Path: "a.txt", Type: LinkTypeSymbolic},
@@ -250,10 +242,7 @@ func TestCheckLinkStatus(t *testing.T) {
 
 			tc.setup(t, localDir, remoteDir)
 
-			config := &Config{Local: localDir, Remote: remoteDir}
-			if tc.noLocal {
-				config.Local = ""
-			}
+			config := newTestConfig(localDir, remoteDir, nil)
 			if tc.noRemote {
 				config.Remote = ""
 			}

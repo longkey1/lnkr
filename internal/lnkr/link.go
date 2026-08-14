@@ -13,6 +13,9 @@ func CreateLinks() error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
+	if err := config.checkNotInsideRemote(); err != nil {
+		return err
+	}
 
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
@@ -52,10 +55,7 @@ func createLinkEntry(link Link, config *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to expand remote path: %w", err)
 	}
-	targetDir, err := config.GetLocalExpanded()
-	if err != nil {
-		return fmt.Errorf("failed to expand local path: %w", err)
-	}
+	targetDir := config.LocalDir()
 
 	// Resolve absolute paths for source and target
 	sourceAbs := filepath.Join(sourceDir, link.Path)
@@ -182,6 +182,11 @@ func createHardLinksRecursively(sourceDir, targetDir string) error {
 
 // applyAllLinksToGitExclude removes existing LNKR section and applies all configured link paths to GitExclude
 func applyAllLinksToGitExclude(config *Config) error {
+	if gitPath, skip := config.gitExcludeWorktreeSkip(); skip {
+		fmt.Printf("Skipping git exclude update: %s is a file (git worktree)\n", gitPath)
+		return nil
+	}
+
 	// First remove the existing LNKR section so stale entries do not linger.
 	// Continue even if removal fails (section might not exist).
 	_, _ = removeGitExcludeSection(config.GetGitExcludePath())
