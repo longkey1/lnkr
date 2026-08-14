@@ -38,10 +38,7 @@ func Init(remote string, gitExcludePath string, force bool) error {
 
 // setupConfigSymlink moves .lnkr.toml to remote and creates a symbolic link
 func setupConfigSymlink(config *Config) error {
-	localDir, err := config.GetLocalExpanded()
-	if err != nil {
-		return fmt.Errorf("failed to expand local path: %w", err)
-	}
+	localDir := config.LocalDir()
 	remoteDir, err := config.GetRemoteExpanded()
 	if err != nil {
 		return fmt.Errorf("failed to expand remote path: %w", err)
@@ -78,15 +75,10 @@ func setupConfigSymlink(config *Config) error {
 func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) error {
 	filename := ConfigFileName
 
-	// Get current directory as absolute path for local
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
 	// Convert remote to absolute path if provided
 	if remote != "" {
 		if !filepath.IsAbs(remote) {
+			var err error
 			remote, err = filepath.Abs(remote)
 			if err != nil {
 				return fmt.Errorf("failed to convert remote to absolute path: %w", err)
@@ -131,9 +123,8 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) e
 	// Create .lnkr.toml file if it doesn't exist
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		// Create new configuration using struct to maintain field order
-		// Use ContractPath to make paths portable
+		// Use ContractPath to make the remote path portable
 		cfg := Config{
-			Local:          ContractPath(currentDir),
 			Remote:         ContractPath(remote),
 			LinkType:       GetGlobalLinkType(),
 			GitExcludePath: gitExcludePath,
@@ -162,7 +153,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) e
 			return fmt.Errorf("failed to close configuration file: %w", err)
 		}
 
-		fmt.Printf("Created %s with local and remote directories\n", filename)
+		fmt.Printf("Created %s with remote directory\n", filename)
 	} else {
 		// Update existing configuration file
 		content, err := os.ReadFile(filename)
@@ -177,16 +168,14 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) e
 			}
 		}
 
-		// Refuse to change existing local/remote settings unless forced,
+		// Refuse to change the existing remote setting unless forced,
 		// so a stray re-init cannot silently break existing links.
-		newLocal := ContractPath(currentDir)
 		newRemote := ContractPath(remote)
 		if !force {
-			if (cfg.Local != "" && cfg.Local != newLocal) || (cfg.Remote != "" && cfg.Remote != newRemote) {
-				return fmt.Errorf("%s already exists with different settings (local: %q, remote: %q); use --force to overwrite", filename, cfg.Local, cfg.Remote)
+			if cfg.Remote != "" && cfg.Remote != newRemote {
+				return fmt.Errorf("%s already exists with a different remote (%q); use --force to overwrite", filename, cfg.Remote)
 			}
 		}
-		cfg.Local = newLocal
 		cfg.Remote = newRemote
 
 		// Set defaults if not present
@@ -212,7 +201,7 @@ func createLnkTomlWithRemote(remote string, gitExcludePath string, force bool) e
 			return fmt.Errorf("failed to close configuration file: %w", err)
 		}
 
-		fmt.Printf("Updated local and remote in %s\n", filename)
+		fmt.Printf("Updated remote in %s\n", filename)
 	}
 	return nil
 }

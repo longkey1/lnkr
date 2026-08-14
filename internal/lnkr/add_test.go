@@ -9,8 +9,8 @@ import (
 )
 
 // setupProject creates a temporary project directory with local and remote
-// subdirectories, changes the working directory to the project root, and
-// saves the given configuration as .lnkr.toml when provided.
+// subdirectories, changes the working directory to the local directory, and
+// saves the given configuration as .lnkr.toml inside it when provided.
 // It returns the local and remote directory paths.
 func setupProject(t *testing.T, config *Config) (localDir, remoteDir string) {
 	t.Helper()
@@ -25,17 +25,27 @@ func setupProject(t *testing.T, config *Config) (localDir, remoteDir string) {
 		}
 	}
 
-	t.Chdir(tempDir)
+	t.Chdir(localDir)
 
 	if config != nil {
-		config.Local = localDir
 		config.Remote = remoteDir
+		config.dir = localDir
 		if err := saveConfig(config); err != nil {
 			t.Fatalf("failed to save config: %v", err)
 		}
 	}
 
 	return localDir, remoteDir
+}
+
+// newTestConfig builds an in-memory configuration equivalent to one loaded
+// from localDir/.lnkr.toml.
+func newTestConfig(localDir, remoteDir string, links []Link) *Config {
+	return &Config{
+		Remote: remoteDir,
+		Links:  links,
+		dir:    localDir,
+	}
 }
 
 // writeFiles creates files (relative path -> content) under baseDir,
@@ -339,31 +349,14 @@ func TestAddDryRun(t *testing.T) {
 }
 
 func TestAddUnconfigured(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config *Config
-	}{
-		{
-			name:   "LocalNotSet",
-			config: &Config{Remote: "/tmp/remote"},
-		},
-		{
-			name:   "RemoteNotSet",
-			config: &Config{Local: "/tmp/local"},
-		},
+	t.Chdir(t.TempDir())
+
+	// Remote not set: the config file exists but has no remote directory.
+	if err := saveConfig(&Config{}); err != nil {
+		t.Fatalf("failed to save config: %v", err)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
-
-			if err := saveConfig(tc.config); err != nil {
-				t.Fatalf("failed to save config: %v", err)
-			}
-
-			if err := Add("notes.txt", false, LinkTypeSymbolic, false); err == nil {
-				t.Fatalf("expected error but got none")
-			}
-		})
+	if err := Add("notes.txt", false, LinkTypeSymbolic, false); err == nil {
+		t.Fatalf("expected error but got none")
 	}
 }

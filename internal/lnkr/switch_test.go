@@ -89,18 +89,14 @@ func TestSwitch(t *testing.T) {
 				}
 			})
 
-			if err := os.Chdir(tempDir); err != nil {
+			if err := os.Chdir(localDir); err != nil {
 				t.Fatalf("failed to change directory: %v", err)
 			}
 
 			// Create config file
-			config := &Config{
-				Local:  localDir,
-				Remote: remoteDir,
-				Links: []Link{
-					{Path: testFile, Type: tc.initialType},
-				},
-			}
+			config := newTestConfig(localDir, remoteDir, []Link{
+				{Path: testFile, Type: tc.initialType},
+			})
 			if err := saveConfig(config); err != nil {
 				t.Fatalf("failed to save config: %v", err)
 			}
@@ -183,18 +179,14 @@ func TestSwitchDirectorySymToHard(t *testing.T) {
 		}
 	})
 
-	if err := os.Chdir(tempDir); err != nil {
+	if err := os.Chdir(localDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
 	// Create config file
-	config := &Config{
-		Local:  localDir,
-		Remote: remoteDir,
-		Links: []Link{
-			{Path: testDir, Type: LinkTypeSymbolic},
-		},
-	}
+	config := newTestConfig(localDir, remoteDir, []Link{
+		{Path: testDir, Type: LinkTypeSymbolic},
+	})
 	if err := saveConfig(config); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
@@ -268,17 +260,13 @@ func TestSwitchDirectoryHardToSym(t *testing.T) {
 		t.Fatalf("failed to create hard link: %v", err)
 	}
 
-	t.Chdir(tempDir)
+	t.Chdir(localDir)
 
 	// Create config with hard link file entries
-	config := &Config{
-		Local:  localDir,
-		Remote: remoteDir,
-		Links: []Link{
-			{Path: filepath.Join(testDir, "file1.txt"), Type: LinkTypeHard},
-			{Path: filepath.Join(testDir, "file2.txt"), Type: LinkTypeHard},
-		},
-	}
+	config := newTestConfig(localDir, remoteDir, []Link{
+		{Path: filepath.Join(testDir, "file1.txt"), Type: LinkTypeHard},
+		{Path: filepath.Join(testDir, "file2.txt"), Type: LinkTypeHard},
+	})
 	if err := saveConfig(config); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
@@ -335,16 +323,12 @@ func TestSwitchNotFound(t *testing.T) {
 		}
 	})
 
-	if err := os.Chdir(tempDir); err != nil {
+	if err := os.Chdir(localDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
 	// Create config file with no links
-	config := &Config{
-		Local:  localDir,
-		Remote: remoteDir,
-		Links:  []Link{},
-	}
+	config := newTestConfig(localDir, remoteDir, []Link{})
 	if err := saveConfig(config); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}

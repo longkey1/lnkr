@@ -65,7 +65,10 @@ The tool uses a two-tier config system:
    - Priority: Environment variables > Config file > Hardcoded defaults
 
 2. **Project config** (`.lnkr.toml`) - TOML-based, per-project settings
-   - Stores local/remote paths and link entries
+   - Stores the remote path and link entries; the directory containing the
+     file is the effective local directory (`Config.LocalDir()`), so one
+     remote can serve multiple checkouts (e.g. git worktrees)
+   - A `local` key from older versions is ignored on load and dropped on save
    - Automatically created as a symlink to remote during `init`
 
 #### Path Variable System (`pathvar.go`)
@@ -80,7 +83,7 @@ Critical for portability across machines. Two key functions:
 - **`ContractPath()`** - Converts absolute paths to portable format for storage
   - Replaces path prefixes with variables (longest match wins)
   - Prefers `{{remote_root}}` and `{{local_root}}` over `$HOME` for lnkr paths
-  - Used when saving paths to `.lnkr.toml` during `init` and `add`
+  - Used when saving the remote path to `.lnkr.toml` during `init`
 
 This system ensures `.lnkr.toml` files work across different machines/users.
 
@@ -96,6 +99,8 @@ Automatically manages git exclusions via `.git/info/exclude` (or custom path):
 - Adds `### LNKR START` / `### LNKR END` section markers
 - Updates exclusions when links are added/removed
 - Cleaned up during `unlink` and `clean` operations
+- Skipped (with a log line) when `.git` is a regular file, i.e. a git
+  worktree, because the main repository's exclude file is shared there
 
 ### Testing
 Tests exist for core logic modules:

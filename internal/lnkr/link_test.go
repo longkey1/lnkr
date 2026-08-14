@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -138,6 +139,110 @@ func TestCreateLinksFailsOnConflictingTarget(t *testing.T) {
 	}
 	if string(content) != "local" {
 		t.Fatalf("existing target content changed: got %q, want %q", content, "local")
+	}
+}
+
+// TestCreateLinksFromConfigInArbitraryDir verifies the 1-remote : N-local
+// model: placing the remote's canonical .lnkr.toml (as symlink or copy) into
+// any directory makes 'lnkr link' create the links there.
+func TestCreateLinksFromConfigInArbitraryDir(t *testing.T) {
+	tempDir := t.TempDir()
+	remoteDir := filepath.Join(tempDir, "remote")
+	if err := os.MkdirAll(remoteDir, 0755); err != nil {
+		t.Fatalf("failed to create remote dir: %v", err)
+	}
+	writeFiles(t, remoteDir, map[string]string{"a.txt": "a"})
+
+	remoteConfig := newTestConfig(remoteDir, remoteDir, []Link{{Path: "a.txt", Type: LinkTypeSymbolic}})
+	if err := saveConfig(remoteConfig); err != nil {
+		t.Fatalf("failed to save remote config: %v", err)
+	}
+	remoteConfigPath := filepath.Join(remoteDir, ConfigFileName)
+
+	for _, mode := range []string{"Symlink", "Copy"} {
+		t.Run(mode, func(t *testing.T) {
+			workDir := filepath.Join(tempDir, "work-"+mode)
+			if err := os.MkdirAll(workDir, 0755); err != nil {
+				t.Fatalf("failed to create work dir: %v", err)
+			}
+
+			workConfigPath := filepath.Join(workDir, ConfigFileName)
+			switch mode {
+			case "Symlink":
+				if err := os.Symlink(remoteConfigPath, workConfigPath); err != nil {
+					t.Fatalf("failed to symlink config: %v", err)
+				}
+			case "Copy":
+				content, err := os.ReadFile(remoteConfigPath)
+				if err != nil {
+					t.Fatalf("failed to read remote config: %v", err)
+				}
+				if err := os.WriteFile(workConfigPath, content, 0644); err != nil {
+					t.Fatalf("failed to copy config: %v", err)
+				}
+			}
+
+			t.Chdir(workDir)
+			if err := CreateLinks(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertLink(t, filepath.Join(workDir, "a.txt"), filepath.Join(remoteDir, "a.txt"), LinkTypeSymbolic)
+		})
+	}
+}
+
+// TestCreateLinksRefusesInsideRemote verifies the guard against running
+// inside the remote directory, where links would be self-referential.
+func TestCreateLinksRefusesInsideRemote(t *testing.T) {
+	remoteDir := t.TempDir()
+	writeFiles(t, remoteDir, map[string]string{"a.txt": "a"})
+
+	config := newTestConfig(remoteDir, remoteDir, []Link{{Path: "a.txt", Type: LinkTypeSymbolic}})
+	if err := saveConfig(config); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	t.Chdir(remoteDir)
+	err := CreateLinks()
+	if err == nil {
+		t.Fatalf("expected error when running inside remote, but got none")
+	}
+	if !strings.Contains(err.Error(), "remote directory") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestLinkAndUnlinkSkipGitExcludeInWorktree verifies that a directory whose
+// .git is a regular file (a git worktree) links and unlinks successfully,
+// leaving .git untouched instead of failing on 'mkdir .git: not a directory'.
+func TestLinkAndUnlinkSkipGitExcludeInWorktree(t *testing.T) {
+	localDir, remoteDir := setupProject(t, &Config{Links: []Link{{Path: "a.txt", Type: LinkTypeSymbolic}}})
+	writeFiles(t, remoteDir, map[string]string{"a.txt": "a"})
+
+	gitFile := filepath.Join(localDir, ".git")
+	if err := os.WriteFile(gitFile, []byte("gitdir: /elsewhere/.git/worktrees/x\n"), 0644); err != nil {
+		t.Fatalf("failed to write .git file: %v", err)
+	}
+
+	if err := CreateLinks(); err != nil {
+		t.Fatalf("unexpected error on link: %v", err)
+	}
+	assertLink(t, filepath.Join(localDir, "a.txt"), filepath.Join(remoteDir, "a.txt"), LinkTypeSymbolic)
+
+	if err := Unlink(false, true); err != nil {
+		t.Fatalf("unexpected error on unlink: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(localDir, "a.txt")); !os.IsNotExist(err) {
+		t.Fatalf("link still exists after unlink")
+	}
+
+	// .git must remain the worktree pointer file.
+	fi, err := os.Lstat(gitFile)
+	if err != nil {
+		t.Fatalf("failed to stat .git: %v", err)
+	}
+	if !fi.Mode().IsRegular() {
+		t.Fatalf("expected .git to remain a regular file, got %v", fi.Mode())
 	}
 }
 

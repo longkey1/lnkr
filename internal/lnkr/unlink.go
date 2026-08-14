@@ -15,6 +15,9 @@ func Unlink(dryRun, assumeYes bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
+	if err := config.checkNotInsideRemote(); err != nil {
+		return err
+	}
 
 	if len(config.Links) == 0 {
 		fmt.Printf("No links found in %s\n", ConfigFileName)
@@ -22,10 +25,7 @@ func Unlink(dryRun, assumeYes bool) error {
 	}
 
 	// Use local directory as base for resolving link paths
-	localDir, err := config.GetLocalExpanded()
-	if err != nil {
-		return fmt.Errorf("failed to expand local path: %w", err)
-	}
+	localDir := config.LocalDir()
 	remoteDir, err := config.GetRemoteExpanded()
 	if err != nil {
 		return fmt.Errorf("failed to expand remote path: %w", err)
@@ -157,6 +157,10 @@ func removeEmptyDirTree(root string) {
 
 // removeAllLinksFromGitExclude removes the LNKR section from GitExclude
 func removeAllLinksFromGitExclude(config *Config) error {
+	if gitPath, skip := config.gitExcludeWorktreeSkip(); skip {
+		fmt.Printf("Skipping git exclude update: %s is a file (git worktree)\n", gitPath)
+		return nil
+	}
 	excludePath := config.GetGitExcludePath()
 	removed, err := removeGitExcludeSection(excludePath)
 	if err != nil {
